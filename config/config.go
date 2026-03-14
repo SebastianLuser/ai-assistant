@@ -6,27 +6,27 @@ import (
 )
 
 type Config struct {
-	Port             string
-	AIProvider        string
-	ClaudeAPIKey      string
-	ClaudeModel       string
-	ClaudeModelLight  string
-	OpenAIAPIKey      string
-	OpenAIModel       string
-	OpenAIModelLight  string
-	CompactThreshold  int
-	MaxHistoryMsgs    int
-	SheetsID         string
-	SheetsCredFile   string
-	SheetsSheetName  string
-	WebhookSecret    string
-	WhatsAppPhoneID  string
-	WhatsAppToken    string
-	WhatsAppTo       string
-	SQLiteDBPath     string
-	SkillsDir        string
-	NotionAPIKey     string
-	NotionPageID     string
+	Port               string
+	AIProvider         string
+	ClaudeAPIKey       string
+	ClaudeModel        string
+	ClaudeModelLight   string
+	OpenAIAPIKey       string
+	OpenAIModel        string
+	OpenAIModelLight   string
+	CompactThreshold   int
+	MaxHistoryMsgs     int
+	SheetsID           string
+	SheetsCredFile     string
+	SheetsSheetName    string
+	WebhookSecret      string
+	WhatsAppPhoneID    string
+	WhatsAppToken      string
+	WhatsAppTo         string
+	SQLiteDBPath       string
+	SkillsDir          string
+	NotionAPIKey       string
+	NotionPageID       string
 	ObsidianVaultPath  string
 	GoogleCalendarID   string
 	StorageBackend     string
@@ -44,29 +44,29 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		Port:              envOr("PORT", "8080"),
-		AIProvider:        envOr("AI_PROVIDER", "claude"),
-		ClaudeAPIKey:      os.Getenv("CLAUDE_API_KEY"),
-		ClaudeModel:       envOr("CLAUDE_MODEL", "claude-sonnet-4-20250514"),
-		ClaudeModelLight:  envOr("CLAUDE_MODEL_LIGHT", ""),
-		OpenAIAPIKey:      os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:       envOr("OPENAI_MODEL", "gpt-4o"),
-		OpenAIModelLight:  envOr("OPENAI_MODEL_LIGHT", ""),
-		CompactThreshold:  envOrInt("COMPACT_THRESHOLD", 20),
-		MaxHistoryMsgs:    envOrInt("MAX_HISTORY_MESSAGES", 30),
-		SheetsID:          os.Getenv("GOOGLE_SHEETS_ID"),
-		SheetsCredFile:    envOr("GOOGLE_CREDENTIALS_FILE", "credentials.json"),
-		SheetsSheetName:   envOr("GOOGLE_SHEETS_NAME", "Gastos"),
-		WebhookSecret:     os.Getenv("WEBHOOK_SECRET"),
-		WhatsAppPhoneID:   os.Getenv("WHATSAPP_PHONE_NUMBER_ID"),
-		WhatsAppToken:     os.Getenv("WHATSAPP_ACCESS_TOKEN"),
-		WhatsAppTo:        os.Getenv("WHATSAPP_TO_NUMBER"),
-		SQLiteDBPath:      envOr("SQLITE_DB_PATH", "data/asistente.db"),
-		SkillsDir:         envOr("SKILLS_DIR", "skills"),
-		NotionAPIKey:      os.Getenv("NOTION_API_KEY"),
-		NotionPageID:      os.Getenv("NOTION_DEFAULT_PAGE_ID"),
-		ObsidianVaultPath: os.Getenv("OBSIDIAN_VAULT_PATH"),
-		GoogleCalendarID:  os.Getenv("GOOGLE_CALENDAR_ID"),
+		Port:               envOr("PORT", "8080"),
+		AIProvider:         envOr("AI_PROVIDER", "claude"),
+		ClaudeAPIKey:       os.Getenv("CLAUDE_API_KEY"),
+		ClaudeModel:        envOr("CLAUDE_MODEL", "claude-sonnet-4-6"),
+		ClaudeModelLight:   envOr("CLAUDE_MODEL_LIGHT", ""),
+		OpenAIAPIKey:       os.Getenv("OPENAI_API_KEY"),
+		OpenAIModel:        envOr("OPENAI_MODEL", "gpt-4o"),
+		OpenAIModelLight:   envOr("OPENAI_MODEL_LIGHT", ""),
+		CompactThreshold:   envOrInt("COMPACT_THRESHOLD", 20),
+		MaxHistoryMsgs:     envOrInt("MAX_HISTORY_MESSAGES", 30),
+		SheetsID:           os.Getenv("GOOGLE_SHEETS_ID"),
+		SheetsCredFile:     envOr("GOOGLE_CREDENTIALS_FILE", "credentials.json"),
+		SheetsSheetName:    envOr("GOOGLE_SHEETS_NAME", "Gastos"),
+		WebhookSecret:      os.Getenv("WEBHOOK_SECRET"),
+		WhatsAppPhoneID:    os.Getenv("WHATSAPP_PHONE_NUMBER_ID"),
+		WhatsAppToken:      os.Getenv("WHATSAPP_ACCESS_TOKEN"),
+		WhatsAppTo:         os.Getenv("WHATSAPP_TO_NUMBER"),
+		SQLiteDBPath:       envOr("SQLITE_DB_PATH", "data/asistente.db"),
+		SkillsDir:          envOr("SKILLS_DIR", "skills"),
+		NotionAPIKey:       os.Getenv("NOTION_API_KEY"),
+		NotionPageID:       os.Getenv("NOTION_DEFAULT_PAGE_ID"),
+		ObsidianVaultPath:  os.Getenv("OBSIDIAN_VAULT_PATH"),
+		GoogleCalendarID:   os.Getenv("GOOGLE_CALENDAR_ID"),
 		StorageBackend:     envOr("STORAGE_BACKEND", "sqlite"),
 		PostgresDSN:        os.Getenv("POSTGRES_DSN"),
 		GitHubToken:        os.Getenv("GITHUB_TOKEN"),

@@ -343,7 +343,7 @@ Headers:
   anthropic-version: 2023-06-01
 Body:
   {
-    "model": "claude-sonnet-4-20250514",
+    "model": "${CLAUDE_MODEL}",
     "max_tokens": 1024,
     "system": "Sos un asistente que parsea gastos...",
     "messages": [{"role": "user", "content": "gasté 5000 en el super"}]
@@ -1021,7 +1021,7 @@ Los modulos University y Work del diseno original se resuelven con el sistema ge
 | n8n (software) | $0 | Open source, self-hosted |
 | PostgreSQL | $0 | Corre en Docker en la VM |
 | Redis | $0 | Corre en Docker en la VM |
-| WhatsApp Business API | $0 | Gratis para volumen personal bajo |
+| WhatsApp Business API | $0* | Probablemente sin costo en uso personal, sujeto al pricing vigente de Meta |
 | Google APIs | $0 | Dentro del free tier para uso personal |
 | Claude API (Anthropic) | ~$5-10/mes | El único costo real |
 | **TOTAL** | **~$5-10/mes** | |
