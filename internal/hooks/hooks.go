@@ -12,7 +12,8 @@ const (
 	BeforeResponse           = "before_response"
 	AfterCompaction          = "after_compaction"
 	CronJobCompleted         = "cron_job_completed"
-	WhatsAppMessageProcessed = "whatsapp_message_processed"
+	WhatsAppMessageProcessed = "whatsapp_message_processed" // deprecated: use MessageProcessed
+	MessageProcessed         = "message_processed"
 )
 
 type Event struct {

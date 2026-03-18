@@ -118,6 +118,50 @@ func FormatForPrompt(skills []Skill) string {
 	return sb.String()
 }
 
+// Save writes a new skill to disk as a markdown file with YAML frontmatter.
+// The filename is derived from the skill name (slugified).
+func (l *Loader) Save(skill Skill) error {
+	if skill.Name == "" {
+		return fmt.Errorf("skills: name is required")
+	}
+
+	filename := slugify(skill.Name) + ".md"
+	path := filepath.Join(l.dir, filename)
+
+	enabled := skill.IsEnabled()
+	var sb strings.Builder
+	sb.WriteString("---\n")
+	sb.WriteString(fmt.Sprintf("name: %s\n", skill.Name))
+	if skill.Description != "" {
+		sb.WriteString(fmt.Sprintf("description: %s\n", skill.Description))
+	}
+	sb.WriteString(fmt.Sprintf("enabled: %t\n", enabled))
+	if len(skill.Tags) > 0 {
+		sb.WriteString("tags:\n")
+		for _, t := range skill.Tags {
+			sb.WriteString(fmt.Sprintf("  - %s\n", t))
+		}
+	}
+	sb.WriteString("---\n\n")
+	sb.WriteString(skill.Content)
+	sb.WriteString("\n")
+
+	return os.WriteFile(path, []byte(sb.String()), 0o644)
+}
+
+// slugify converts a skill name to a safe filename.
+func slugify(name string) string {
+	lower := strings.ToLower(name)
+	lower = strings.ReplaceAll(lower, " ", "-")
+	var safe strings.Builder
+	for _, r := range lower {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			safe.WriteRune(r)
+		}
+	}
+	return safe.String()
+}
+
 // parse splits a markdown file into YAML frontmatter and body content.
 func parse(raw string) (Skill, error) {
 	var skill Skill

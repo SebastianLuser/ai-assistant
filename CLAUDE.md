@@ -103,7 +103,10 @@ HTTP Request → Controller → UseCase → Service (DB/API) → UseCase → Con
 - **Context Engine**: Ingest → Assemble → Compact (multi-stage with fallback)
 - **Hybrid search**: Vector + FTS5 with fallback chain
 - **Graceful shutdown**: SIGINT/SIGTERM handling con deferred cleanup
-- **WhatsApp webhook**: Direct Meta integration with HMAC-SHA256 signature verification, intent-based routing (expense/note/chat), async processing
+- **Channel-agnostic MessageRouter**: Intent-based routing (expense/note/chat) via `domain.Channel` interface — same router for WhatsApp, Telegram, CLI, etc.
+- **AI failover**: `FailoverProvider` wraps primary + fallback AIProvider — if Claude fails, falls back to OpenAI automatically
+- **Skills auto-generated**: Skills can be created at runtime via `POST /api/skills` — the AI or user can create new skills from chat
+- **Webhook triggers**: Cron jobs can be triggered manually via `POST /api/triggers/job/:job_id`
 
 ## API Endpoints
 
@@ -158,6 +161,10 @@ HTTP Request → Controller → UseCase → Service (DB/API) → UseCase → Con
 | GET | `/api/figma/file/:file_key/comments` | List file comments |
 | GET | `/api/figma/file/:file_key/components` | List file components |
 | GET | `/api/figma/project/:project_id/files` | List project files |
+| GET | `/api/skills` | List enabled skills |
+| POST | `/api/skills` | Create a new skill |
+| GET | `/api/triggers/jobs` | List registered cron jobs |
+| POST | `/api/triggers/job/:job_id` | Manually trigger a cron job |
 
 ## Environment Variables
 

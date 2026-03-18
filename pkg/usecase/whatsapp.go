@@ -11,78 +11,75 @@ import (
 	"asistente/pkg/service"
 )
 
-const whatsAppSessionPrefix = "whatsapp-"
-
-type WhatsAppUseCase struct {
+// MessageRouter handles incoming messages from any channel (WhatsApp, Telegram, CLI, etc).
+// It detects intent, delegates to the appropriate usecase, and sends a reply via the channel.
+type MessageRouter struct {
 	conversation *ConversationUseCase
 	finance      *FinanceUseCase
 	memorySvc    service.MemoryService
 	embedder     service.Embedder
 	ai           domain.AIProvider
-	wa           domain.WhatsAppSender
 	skills       skills.SkillProvider
 	hooks        *hooks.Registry
 	allowedFrom  string
 }
 
-func NewWhatsAppUseCase(
+func NewMessageRouter(
 	conversation *ConversationUseCase,
 	finance *FinanceUseCase,
 	memorySvc service.MemoryService,
 	embedder service.Embedder,
 	ai domain.AIProvider,
-	wa domain.WhatsAppSender,
 	skillsProvider skills.SkillProvider,
 	hooksRegistry *hooks.Registry,
 	allowedFrom string,
-) *WhatsAppUseCase {
-	return &WhatsAppUseCase{
+) *MessageRouter {
+	return &MessageRouter{
 		conversation: conversation,
 		finance:      finance,
 		memorySvc:    memorySvc,
 		embedder:     embedder,
 		ai:           ai,
-		wa:           wa,
 		skills:       skillsProvider,
 		hooks:        hooksRegistry,
 		allowedFrom:  allowedFrom,
 	}
 }
 
-// ProcessMessage handles an incoming WhatsApp text message.
+// ProcessMessage handles an incoming text message from any channel.
 // It detects intent, delegates to the appropriate usecase, and sends a reply.
-func (uc *WhatsAppUseCase) ProcessMessage(from, messageID, text string) {
-	if uc.allowedFrom != "" && from != uc.allowedFrom {
-		log.Printf("whatsapp: ignoring message from unauthorized number %s", from)
+func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text string) {
+	if r.allowedFrom != "" && from != r.allowedFrom {
+		log.Printf("%s: ignoring message from unauthorized sender %s", ch.Name(), from)
 		return
 	}
 
-	_ = uc.markAsRead(messageID)
+	_ = ch.AckMessage(messageID)
 
 	intent := detectIntent(text)
-	log.Printf("whatsapp: from=%s intent=%s msg=%q", from, intent, truncate(text, 80))
+	log.Printf("%s: from=%s intent=%s msg=%q", ch.Name(), from, intent, truncate(text, 80))
 
-	response, err := uc.handleIntent(intent, from, text)
+	response, err := r.handleIntent(intent, from, text, ch.Name())
 	if err != nil {
-		log.Printf("whatsapp: error handling intent %s: %v", intent, err)
+		log.Printf("%s: error handling intent %s: %v", ch.Name(), intent, err)
 		response = "Perdón, hubo un error procesando tu mensaje. Intentá de nuevo."
 	}
 
-	if err := uc.wa.SendTextMessage(from, response); err != nil {
-		log.Printf("whatsapp: failed to send reply to %s: %v", from, err)
+	if err := ch.SendMessage(from, response); err != nil {
+		log.Printf("%s: failed to send reply to %s: %v", ch.Name(), from, err)
 	}
 
-	uc.hooks.Emit(context.Background(), hooks.WhatsAppMessageProcessed, map[string]string{
-		"from": from, "intent": intent, "message": text,
+	r.hooks.Emit(context.Background(), hooks.MessageProcessed, map[string]string{
+		"channel": ch.Name(), "from": from, "intent": intent, "message": text,
 	})
 }
 
 type intentType = string
 
 const (
-	intentExpense  intentType = "expense"
-	intentNote     intentType = "note"
-	intentChat     intentType = "chat"
+	intentExpense intentType = "expense"
+	intentNote    intentType = "note"
+	intentChat    intentType = "chat"
 )
 
 // detectIntent classifies the message using simple prefix/keyword matching.
@@ -114,42 +111,42 @@ func detectIntent(text string) intentType {
 	return intentChat
 }
 
-func (uc *WhatsAppUseCase) handleIntent(intent, from, text string) (string, error) {
+func (r *MessageRouter) handleIntent(intent, from, text, channelName string) (string, error) {
 	switch intent {
 	case intentExpense:
-		return uc.handleExpense(text)
+		return r.handleExpense(text)
 	case intentNote:
-		return uc.handleNote(text)
+		return r.handleNote(text, channelName)
 	default:
-		return uc.handleChat(from, text)
+		return r.handleChat(from, text, channelName)
 	}
 }
 
-func (uc *WhatsAppUseCase) handleExpense(text string) (string, error) {
-	if uc.finance == nil {
+func (r *MessageRouter) handleExpense(text string) (string, error) {
+	if r.finance == nil {
 		return "El módulo de finanzas no está configurado.", nil
 	}
-	return uc.finance.ProcessExpense(text, "Sebas")
+	return r.finance.ProcessExpense(text, "Sebas")
 }
 
-func (uc *WhatsAppUseCase) handleNote(text string) (string, error) {
-	if uc.memorySvc == nil {
+func (r *MessageRouter) handleNote(text, channelName string) (string, error) {
+	if r.memorySvc == nil {
 		return "El módulo de notas no está configurado.", nil
 	}
 
 	content := stripNotePrefix(text)
 
 	var embedding []float64
-	if uc.embedder != nil {
-		emb, err := uc.embedder.Embed(content)
+	if r.embedder != nil {
+		emb, err := r.embedder.Embed(content)
 		if err != nil {
-			log.Printf("whatsapp: embedding failed, saving without: %v", err)
+			log.Printf("%s: embedding failed, saving without: %v", channelName, err)
 		} else {
 			embedding = emb
 		}
 	}
 
-	_, err := uc.memorySvc.Save(content, []string{"whatsapp"}, embedding)
+	_, err := r.memorySvc.Save(content, []string{channelName}, embedding)
 	if err != nil {
 		return "", domain.Wrapf(domain.ErrStoreSave, err)
 	}
@@ -157,40 +154,40 @@ func (uc *WhatsAppUseCase) handleNote(text string) (string, error) {
 	return "Anotado!", nil
 }
 
-func (uc *WhatsAppUseCase) handleChat(from, text string) (string, error) {
-	sessionID := whatsAppSessionPrefix + from
+func (r *MessageRouter) handleChat(from, text, channelName string) (string, error) {
+	sessionID := channelName + "-" + from
 
-	if err := uc.conversation.Ingest(sessionID, domain.RoleUser, text); err != nil {
+	if err := r.conversation.Ingest(sessionID, domain.RoleUser, text); err != nil {
 		return "", err
 	}
 
-	messages, err := uc.conversation.Assemble(sessionID)
+	messages, err := r.conversation.Assemble(sessionID)
 	if err != nil {
 		return "", err
 	}
 
-	systemPrompt := uc.buildSystemPrompt(text)
+	systemPrompt := r.buildSystemPrompt(text, channelName)
 
-	response, err := uc.ai.CompleteMessages(systemPrompt, messages)
+	response, err := r.ai.CompleteMessages(systemPrompt, messages)
 	if err != nil {
 		return "", err
 	}
 
-	_ = uc.conversation.Ingest(sessionID, domain.RoleAssistant, response)
+	_ = r.conversation.Ingest(sessionID, domain.RoleAssistant, response)
 
 	return response, nil
 }
 
-func (uc *WhatsAppUseCase) buildSystemPrompt(message string) string {
+func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
 	var sb strings.Builder
 	sb.WriteString(domain.DefaultSystemPrompt)
-	sb.WriteString("El usuario te habla por WhatsApp. Sé conciso.\n\n")
+	sb.WriteString("El usuario te habla por " + channelName + ". Sé conciso.\n\n")
 
-	if uc.skills == nil {
+	if r.skills == nil {
 		return sb.String()
 	}
 
-	loaded, err := uc.skills.LoadEnabled()
+	loaded, err := r.skills.LoadEnabled()
 	if err != nil || len(loaded) == 0 {
 		return sb.String()
 	}
@@ -207,16 +204,6 @@ func (uc *WhatsAppUseCase) buildSystemPrompt(message string) string {
 	sb.WriteString(skills.FormatForPrompt(relevant))
 
 	return sb.String()
-}
-
-func (uc *WhatsAppUseCase) markAsRead(messageID string) error {
-	type readMarker interface {
-		MarkAsRead(messageID string) error
-	}
-	if rm, ok := uc.wa.(readMarker); ok {
-		return rm.MarkAsRead(messageID)
-	}
-	return nil
 }
 
 func stripNotePrefix(text string) string {

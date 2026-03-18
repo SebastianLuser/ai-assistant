@@ -256,6 +256,26 @@ func (m *MockWhatsAppSender) MarkAsRead(messageID string) error {
 
 var _ domain.WhatsAppSender = (*MockWhatsAppSender)(nil)
 
+// MockChannel mocks domain.Channel for testing the MessageRouter.
+type MockChannel struct {
+	mock.Mock
+	ChannelName string
+}
+
+func (m *MockChannel) Name() string { return m.ChannelName }
+
+func (m *MockChannel) SendMessage(to, text string) error {
+	args := m.Called(to, text)
+	return args.Error(0)
+}
+
+func (m *MockChannel) AckMessage(messageID string) error {
+	args := m.Called(messageID)
+	return args.Error(0)
+}
+
+var _ domain.Channel = (*MockChannel)(nil)
+
 func NewMockClaudeServerError(statusCode int, errType, errMsg string) (*httptest.Server, domain.AIProvider) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

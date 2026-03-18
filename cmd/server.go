@@ -25,14 +25,16 @@ func NewApp(cfg config.Config) *App {
 	memorySvc := NewMemoryService(cfg)
 	hooksRegistry := hooks.NewRegistry()
 
+	scheduler := NewScheduler(cl, cfg, memorySvc, hooksRegistry)
+
 	ctrls := NewControllers(cl, cfg, memorySvc,
 		NewFinanceService(cl.Sheets, cfg.SheetsSheetName),
 		NewEmbedder(cl.AILight),
 		skills.NewCachedLoader(skills.NewLoader(cfg.SkillsDir)),
 		hooksRegistry,
+		scheduler,
 	)
 
-	scheduler := NewScheduler(cl, cfg, memorySvc, hooksRegistry)
 	scheduler.Start()
 
 	return &App{

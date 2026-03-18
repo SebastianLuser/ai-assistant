@@ -33,6 +33,16 @@ type WhatsAppSender interface {
 	SendTextMessage(to, text string) error
 }
 
+// Channel represents a messaging channel (WhatsApp, Telegram, CLI, etc).
+type Channel interface {
+	// Name returns the channel identifier (e.g. "whatsapp", "telegram", "cli").
+	Name() string
+	// SendMessage sends a text reply to the given recipient.
+	SendMessage(to, text string) error
+	// AckMessage acknowledges receipt (e.g. read receipts). Optional — noop if unsupported.
+	AckMessage(messageID string) error
+}
+
 type DeliveryConfig struct {
 	Mode     string
 	To       string

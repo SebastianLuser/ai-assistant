@@ -95,9 +95,24 @@ func (c *CachedLoader) LoadAll() ([]Skill, error) {
 	return c.loader.LoadAll()
 }
 
+// Save writes a skill to disk and invalidates the cache.
+func (c *CachedLoader) Save(skill Skill) error {
+	if err := c.loader.Save(skill); err != nil {
+		return err
+	}
+	c.Invalidate()
+	return nil
+}
+
 // SkillProvider is the interface used by controllers to load skills.
 type SkillProvider interface {
 	LoadEnabled() ([]Skill, error)
+}
+
+// SkillWriter extends SkillProvider with the ability to save new skills.
+type SkillWriter interface {
+	SkillProvider
+	Save(skill Skill) error
 }
 
 var (

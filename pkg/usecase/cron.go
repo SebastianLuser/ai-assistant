@@ -59,6 +59,46 @@ func (s *Scheduler) Start() {
 	}()
 }
 
+// TriggerJob manually executes a job by ID, regardless of schedule.
+func (s *Scheduler) TriggerJob(jobID string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.jobs {
+		if s.jobs[i].ID == jobID {
+			log.Printf("cron: manual trigger for job %s", jobID)
+			result, err := s.jobs[i].Execute()
+			if err != nil {
+				return "", err
+			}
+			if err := s.jobs[i].Deliver(result); err != nil {
+				return result, err
+			}
+			s.jobs[i].LastRun = time.Now()
+
+			s.hooks.Emit(context.Background(), hooks.CronJobCompleted, map[string]string{
+				"job_id": jobID, "result": result, "trigger": "manual",
+			})
+
+			return result, nil
+		}
+	}
+
+	return "", fmt.Errorf("job not found: %s", jobID)
+}
+
+// ListJobs returns the IDs of all registered jobs.
+func (s *Scheduler) ListJobs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	ids := make([]string, len(s.jobs))
+	for i, j := range s.jobs {
+		ids[i] = j.ID
+	}
+	return ids
+}
+
 func (s *Scheduler) Stop() {
 	select {
 	case <-s.stopCh:

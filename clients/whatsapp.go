@@ -108,6 +108,19 @@ func splitMessage(text string, maxLen int) []string {
 	return chunks
 }
 
+// Name implements domain.Channel.
+func (c *WhatsAppClient) Name() string { return "whatsapp" }
+
+// SendMessage implements domain.Channel.
+func (c *WhatsAppClient) SendMessage(to, text string) error {
+	return c.SendTextMessage(to, text)
+}
+
+// AckMessage implements domain.Channel by sending a read receipt.
+func (c *WhatsAppClient) AckMessage(messageID string) error {
+	return c.MarkAsRead(messageID)
+}
+
 func lastIndexByte(s string, b byte) int {
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == b {

@@ -27,6 +27,8 @@ type Controllers struct {
 	Link     *controller.LinkController
 	Project  *controller.ProjectController
 	Figma    *controller.FigmaController
+	Skill    *controller.SkillController
+	Trigger  *controller.TriggerController
 }
 
 func NewControllers(
@@ -37,6 +39,7 @@ func NewControllers(
 	embedder service.Embedder,
 	skillsLoader skills.SkillProvider,
 	hooksRegistry *hooks.Registry,
+	scheduler *usecase.Scheduler,
 ) Controllers {
 	financeUC := usecase.NewFinanceUseCase(cl.AI, financeSvc)
 	financeUC.SetMemoryService(memorySvc)
@@ -80,13 +83,19 @@ func NewControllers(
 		c.ClickUp = controller.NewClickUpController(cl.ClickUp)
 	}
 
+	if sw, ok := skillsLoader.(skills.SkillWriter); ok {
+		c.Skill = controller.NewSkillController(sw)
+	}
+
+	c.Trigger = controller.NewTriggerController(scheduler)
+
 	if cl.Figma != nil {
 		c.Figma = controller.NewFigmaController(cl.Figma)
 	}
 
 	if cl.WhatsApp != nil && cfg.WhatsAppVerifyToken != "" {
-		waUC := usecase.NewWhatsAppUseCase(chatUC, financeUC, memorySvc, embedder, cl.AI, cl.WhatsApp, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
-		c.WhatsApp = controller.NewWhatsAppController(waUC, cfg.WhatsAppVerifyToken, cfg.WhatsAppAppSecret)
+		router := usecase.NewMessageRouter(chatUC, financeUC, memorySvc, embedder, cl.AI, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
+		c.WhatsApp = controller.NewWhatsAppController(router, cl.WhatsApp, cfg.WhatsAppVerifyToken, cfg.WhatsAppAppSecret)
 	}
 
 	return c

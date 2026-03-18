@@ -14,8 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newTestWAController(verifyToken, appSecret string) *WhatsAppController {
+	return NewWhatsAppController(nil, nil, verifyToken, appSecret)
+}
+
 func TestWhatsAppController_VerifyWebhook_ValidToken(t *testing.T) {
-	ctrl := NewWhatsAppController(nil, "my-token", "")
+	ctrl := newTestWAController("my-token", "")
 	req := test.NewMockRequest().
 		WithQuery("hub.mode", "subscribe").
 		WithQuery("hub.verify_token", "my-token").
@@ -28,7 +32,7 @@ func TestWhatsAppController_VerifyWebhook_ValidToken(t *testing.T) {
 }
 
 func TestWhatsAppController_VerifyWebhook_InvalidToken(t *testing.T) {
-	ctrl := NewWhatsAppController(nil, "my-token", "")
+	ctrl := newTestWAController("my-token", "")
 	req := test.NewMockRequest().
 		WithQuery("hub.mode", "subscribe").
 		WithQuery("hub.verify_token", "wrong-token").
@@ -40,7 +44,7 @@ func TestWhatsAppController_VerifyWebhook_InvalidToken(t *testing.T) {
 }
 
 func TestWhatsAppController_VerifyWebhook_MissingParams(t *testing.T) {
-	ctrl := NewWhatsAppController(nil, "my-token", "")
+	ctrl := newTestWAController("my-token", "")
 	req := test.NewMockRequest().
 		WithQuery("hub.mode", "subscribe")
 
@@ -50,7 +54,7 @@ func TestWhatsAppController_VerifyWebhook_MissingParams(t *testing.T) {
 }
 
 func TestWhatsAppController_HandleWebhook_InvalidSignature(t *testing.T) {
-	ctrl := NewWhatsAppController(nil, "", "app-secret")
+	ctrl := newTestWAController("", "app-secret")
 	payload := domain.WhatsAppWebhookPayload{Object: "whatsapp_business_account"}
 	body, _ := json.Marshal(payload)
 
@@ -81,7 +85,7 @@ func TestWhatsAppController_HandleWebhook_ValidSignature(t *testing.T) {
 	mac.Write(body)
 	sig := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 
-	ctrl := NewWhatsAppController(nil, "", secret)
+	ctrl := newTestWAController("", secret)
 	req := test.NewMockRequest().
 		WithBody(string(body)).
 		WithHeader("X-Hub-Signature-256", sig)
@@ -92,7 +96,7 @@ func TestWhatsAppController_HandleWebhook_ValidSignature(t *testing.T) {
 }
 
 func TestWhatsAppController_HandleWebhook_NoSecretConfigured(t *testing.T) {
-	ctrl := NewWhatsAppController(nil, "", "")
+	ctrl := newTestWAController("", "")
 	payload := domain.WhatsAppWebhookPayload{Object: "whatsapp_business_account"}
 	body, _ := json.Marshal(payload)
 

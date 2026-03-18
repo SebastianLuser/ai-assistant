@@ -26,7 +26,7 @@ type Clients struct {
 }
 
 func NewClients(cfg config.Config) Clients {
-	ai := newAIProvider(cfg)
+	ai := newAIProviderWithFailover(cfg)
 	return Clients{
 		AI:       ai,
 		AILight:  newAILightProvider(cfg, ai),
@@ -45,6 +45,12 @@ func NewClients(cfg config.Config) Clients {
 	}
 }
 
+func newAIProviderWithFailover(cfg config.Config) domain.AIProvider {
+	primary := newAIProvider(cfg)
+	fallback := newAIFallback(cfg)
+	return clients.NewFailoverProvider(primary, fallback)
+}
+
 func newAIProvider(cfg config.Config) domain.AIProvider {
 	switch cfg.AIProvider {
 	case "openai":
@@ -53,6 +59,23 @@ func newAIProvider(cfg config.Config) domain.AIProvider {
 	default:
 		log.Printf("AI provider: Claude (model: %s)", cfg.ClaudeModel)
 		return clients.NewClaudeClient(cfg.ClaudeAPIKey, cfg.ClaudeModel)
+	}
+}
+
+func newAIFallback(cfg config.Config) domain.AIProvider {
+	switch cfg.AIProvider {
+	case "openai":
+		if cfg.ClaudeAPIKey == "" {
+			return nil
+		}
+		log.Printf("AI fallback: Claude (model: %s)", cfg.ClaudeModel)
+		return clients.NewClaudeClient(cfg.ClaudeAPIKey, cfg.ClaudeModel)
+	default:
+		if cfg.OpenAIAPIKey == "" {
+			return nil
+		}
+		log.Printf("AI fallback: OpenAI (model: %s)", cfg.OpenAIModel)
+		return clients.NewOpenAIClient(cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	}
 }
 

@@ -115,6 +115,16 @@ func registerRoutes(router boot.GinRouter, c Controllers) {
 		api.GET("/projects/:name/status", webgin.NewHandlerJSON(c.Project.GetStatus))
 	}
 
+	if c.Skill != nil {
+		api.GET("/skills", webgin.NewHandlerJSON(c.Skill.ListSkills))
+		api.POST("/skills", webgin.NewHandlerJSON(c.Skill.CreateSkill))
+	}
+
+	if c.Trigger != nil {
+		api.GET("/triggers/jobs", webgin.NewHandlerJSON(c.Trigger.ListJobs))
+		api.POST("/triggers/job/:job_id", webgin.NewHandlerJSON(c.Trigger.TriggerJob))
+	}
+
 	if c.Figma != nil {
 		api.GET("/figma/file/:file_key", webgin.NewHandlerJSON(c.Figma.GetFile))
 		api.GET("/figma/file/:file_key/nodes", webgin.NewHandlerJSON(c.Figma.GetNodes))

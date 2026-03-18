@@ -15,21 +15,22 @@ import (
 )
 
 type WhatsAppController struct {
-	usecase     *usecase.WhatsAppUseCase
+	router      *usecase.MessageRouter
+	channel     domain.Channel
 	verifyToken string
 	appSecret   string
 }
 
-func NewWhatsAppController(uc *usecase.WhatsAppUseCase, verifyToken, appSecret string) *WhatsAppController {
+func NewWhatsAppController(router *usecase.MessageRouter, channel domain.Channel, verifyToken, appSecret string) *WhatsAppController {
 	return &WhatsAppController{
-		usecase:     uc,
+		router:      router,
+		channel:     channel,
 		verifyToken: verifyToken,
 		appSecret:   appSecret,
 	}
 }
 
 // VerifyWebhook handles Meta's GET verification challenge.
-// Meta sends hub.mode, hub.verify_token, and hub.challenge as query params.
 func (c *WhatsAppController) VerifyWebhook(req web.Request) web.Response {
 	mode, _ := req.Query("hub.mode")
 	token, _ := req.Query("hub.verify_token")
@@ -74,7 +75,7 @@ func (c *WhatsAppController) HandleWebhook(req web.Request) web.Response {
 
 	messages := domain.ExtractTextMessages(payload)
 	for _, msg := range messages {
-		go c.usecase.ProcessMessage(msg.From, msg.ID, msg.Text.Body)
+		go c.router.ProcessMessage(c.channel, msg.From, msg.ID, msg.Text.Body)
 	}
 
 	if len(messages) > 0 {
