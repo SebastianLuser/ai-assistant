@@ -49,16 +49,23 @@ type WhatsAppProfile struct {
 
 // WhatsAppIncomingMessage represents a single incoming message.
 type WhatsAppIncomingMessage struct {
-	From      string          `json:"from"`
-	ID        string          `json:"id"`
-	Timestamp string          `json:"timestamp"`
-	Type      string          `json:"type"`
-	Text      WhatsAppTextBody `json:"text,omitempty"`
+	From      string           `json:"from"`
+	ID        string           `json:"id"`
+	Timestamp string           `json:"timestamp"`
+	Type      string           `json:"type"`
+	Text      WhatsAppTextBody  `json:"text,omitempty"`
+	Audio     *WhatsAppAudioBody `json:"audio,omitempty"`
 }
 
 // WhatsAppTextBody contains the text content of a message.
 type WhatsAppTextBody struct {
 	Body string `json:"body"`
+}
+
+// WhatsAppAudioBody contains audio message metadata.
+type WhatsAppAudioBody struct {
+	ID       string `json:"id"`
+	MimeType string `json:"mime_type"`
 }
 
 // WhatsAppStatus represents a message status update (sent, delivered, read).
@@ -94,6 +101,21 @@ func ExtractTextMessages(payload WhatsAppWebhookPayload) []WhatsAppIncomingMessa
 		for _, change := range entry.Changes {
 			for _, msg := range change.Value.Messages {
 				if msg.Type == "text" && msg.Text.Body != "" {
+					msgs = append(msgs, msg)
+				}
+			}
+		}
+	}
+	return msgs
+}
+
+// ExtractAudioMessages returns all audio/voice messages from a webhook payload.
+func ExtractAudioMessages(payload WhatsAppWebhookPayload) []WhatsAppIncomingMessage {
+	var msgs []WhatsAppIncomingMessage
+	for _, entry := range payload.Entry {
+		for _, change := range entry.Changes {
+			for _, msg := range change.Value.Messages {
+				if (msg.Type == "audio" || msg.Type == "voice") && msg.Audio != nil {
 					msgs = append(msgs, msg)
 				}
 			}

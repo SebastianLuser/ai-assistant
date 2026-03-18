@@ -11,33 +11,29 @@ import (
 	"asistente/internal/hooks"
 	"asistente/internal/skills"
 	"asistente/pkg/domain"
-	"asistente/pkg/service"
 )
 
 // MessageRouter handles incoming messages from any channel (WhatsApp, Telegram, CLI, etc).
-// It detects intent, delegates to the appropriate usecase, and sends a reply via the channel.
+// Uses Claude's tool use to autonomously decide which actions to execute.
 type MessageRouter struct {
 	conversation *ConversationUseCase
-	finance      *FinanceUseCase
-	memorySvc    service.MemoryService
-	embedder     service.Embedder
 	ai           domain.AIProvider
+	agent        *AgentUseCase
+	transcriber  domain.Transcriber
 	skills       skills.SkillProvider
 	hooks        *hooks.Registry
 	allowedFrom  string
 
-	// Pairing: authorize unknown senders via a one-time code.
-	pairingMu    sync.RWMutex
-	pairingCode  string
+	pairingMu     sync.RWMutex
+	pairingCode   string
 	pairedSenders map[string]bool
 }
 
 func NewMessageRouter(
 	conversation *ConversationUseCase,
-	finance *FinanceUseCase,
-	memorySvc service.MemoryService,
-	embedder service.Embedder,
 	ai domain.AIProvider,
+	agent *AgentUseCase,
+	transcriber domain.Transcriber,
 	skillsProvider skills.SkillProvider,
 	hooksRegistry *hooks.Registry,
 	allowedFrom string,
@@ -49,10 +45,9 @@ func NewMessageRouter(
 
 	return &MessageRouter{
 		conversation:  conversation,
-		finance:       finance,
-		memorySvc:     memorySvc,
-		embedder:      embedder,
 		ai:            ai,
+		agent:         agent,
+		transcriber:   transcriber,
 		skills:        skillsProvider,
 		hooks:         hooksRegistry,
 		allowedFrom:   allowedFrom,
@@ -77,7 +72,6 @@ func generatePairingCode() string {
 }
 
 // ProcessMessage handles an incoming text message from any channel.
-// It detects intent, delegates to the appropriate usecase, and sends a reply.
 func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text string) {
 	if !r.isAuthorized(from) {
 		r.handleUnauthorized(ch, from, messageID, text)
@@ -85,13 +79,11 @@ func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text 
 	}
 
 	_ = ch.AckMessage(messageID)
+	log.Printf("%s: from=%s msg=%q", ch.Name(), from, truncate(text, 80))
 
-	intent := detectIntent(text)
-	log.Printf("%s: from=%s intent=%s msg=%q", ch.Name(), from, intent, truncate(text, 80))
-
-	response, err := r.handleIntent(intent, from, text, ch.Name())
+	response, err := r.handleMessage(from, text, ch.Name())
 	if err != nil {
-		log.Printf("%s: error handling intent %s: %v", ch.Name(), intent, err)
+		log.Printf("%s: error: %v", ch.Name(), err)
 		response = "Perdón, hubo un error procesando tu mensaje. Intentá de nuevo."
 	}
 
@@ -100,91 +92,55 @@ func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text 
 	}
 
 	r.hooks.Emit(context.Background(), hooks.MessageProcessed, map[string]string{
-		"channel": ch.Name(), "from": from, "intent": intent, "message": text,
+		"channel": ch.Name(), "from": from, "message": text,
 	})
 }
 
-type intentType = string
-
-const (
-	intentExpense intentType = "expense"
-	intentNote    intentType = "note"
-	intentChat    intentType = "chat"
-)
-
-// detectIntent classifies the message using simple prefix/keyword matching.
-// This avoids burning an AI call for every incoming message.
-func detectIntent(text string) intentType {
-	lower := strings.ToLower(strings.TrimSpace(text))
-
-	expensePrefixes := []string{"gaste ", "gasté ", "gastamos ", "pague ", "pagué ", "pagamos ", "compre ", "compré ", "compramos "}
-	for _, p := range expensePrefixes {
-		if strings.HasPrefix(lower, p) {
-			return intentExpense
-		}
+// ProcessAudioMessage downloads audio, transcribes it, then processes as text.
+func (r *MessageRouter) ProcessAudioMessage(ch domain.Channel, from, messageID, mediaID string) {
+	if !r.isAuthorized(from) {
+		r.handleUnauthorized(ch, from, messageID, mediaID)
+		return
 	}
 
-	expenseKeywords := []string{" lucas", " luquitas", " pesos", " dolares", " dólares", " usd"}
-	for _, k := range expenseKeywords {
-		if strings.Contains(lower, k) {
-			return intentExpense
-		}
+	_ = ch.AckMessage(messageID)
+
+	// Download audio
+	downloader, ok := ch.(domain.MediaDownloader)
+	if !ok {
+		log.Printf("%s: channel does not support media download", ch.Name())
+		_ = ch.SendMessage(from, "No puedo procesar audios desde este canal.")
+		return
 	}
 
-	notePrefixes := []string{"nota ", "nota: ", "recordá ", "recorda ", "recordame ", "acordate "}
-	for _, p := range notePrefixes {
-		if strings.HasPrefix(lower, p) {
-			return intentNote
-		}
+	if r.transcriber == nil {
+		_ = ch.SendMessage(from, "La transcripción de audio no está configurada. Necesito OPENAI_API_KEY.")
+		return
 	}
 
-	return intentChat
-}
-
-func (r *MessageRouter) handleIntent(intent, from, text, channelName string) (string, error) {
-	switch intent {
-	case intentExpense:
-		return r.handleExpense(text)
-	case intentNote:
-		return r.handleNote(text, channelName)
-	default:
-		return r.handleChat(from, text, channelName)
-	}
-}
-
-func (r *MessageRouter) handleExpense(text string) (string, error) {
-	if r.finance == nil {
-		return "El módulo de finanzas no está configurado.", nil
-	}
-	return r.finance.ProcessExpense(text, "Sebas")
-}
-
-func (r *MessageRouter) handleNote(text, channelName string) (string, error) {
-	if r.memorySvc == nil {
-		return "El módulo de notas no está configurado.", nil
-	}
-
-	content := stripNotePrefix(text)
-
-	var embedding []float64
-	if r.embedder != nil {
-		emb, err := r.embedder.Embed(content)
-		if err != nil {
-			log.Printf("%s: embedding failed, saving without: %v", channelName, err)
-		} else {
-			embedding = emb
-		}
-	}
-
-	_, err := r.memorySvc.Save(content, []string{channelName}, embedding)
+	audioData, mimeType, err := downloader.DownloadMedia(mediaID)
 	if err != nil {
-		return "", domain.Wrapf(domain.ErrStoreSave, err)
+		log.Printf("%s: failed to download audio: %v", ch.Name(), err)
+		_ = ch.SendMessage(from, "No pude descargar el audio.")
+		return
 	}
 
-	return "Anotado!", nil
+	log.Printf("%s: transcribing audio from %s (%d bytes, %s)", ch.Name(), from, len(audioData), mimeType)
+
+	text, err := r.transcriber.Transcribe(audioData, mimeType)
+	if err != nil {
+		log.Printf("%s: transcription failed: %v", ch.Name(), err)
+		_ = ch.SendMessage(from, "No pude transcribir el audio.")
+		return
+	}
+
+	log.Printf("%s: transcribed: %q", ch.Name(), truncate(text, 100))
+
+	// Process the transcribed text as a normal message
+	r.ProcessMessage(ch, from, messageID, text)
 }
 
-func (r *MessageRouter) handleChat(from, text, channelName string) (string, error) {
+func (r *MessageRouter) handleMessage(from, text, channelName string) (string, error) {
 	sessionID := channelName + "-" + from
 
 	if err := r.conversation.Ingest(sessionID, domain.RoleUser, text); err != nil {
@@ -198,7 +154,13 @@ func (r *MessageRouter) handleChat(from, text, channelName string) (string, erro
 
 	systemPrompt := r.buildSystemPrompt(text, channelName)
 
-	response, err := r.ai.CompleteMessages(systemPrompt, messages)
+	// Use agent with tools if available, otherwise fall back to plain chat.
+	var response string
+	if r.agent != nil {
+		response, err = r.agent.Run(systemPrompt, messages)
+	} else {
+		response, err = r.ai.CompleteMessages(systemPrompt, messages)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -211,7 +173,8 @@ func (r *MessageRouter) handleChat(from, text, channelName string) (string, erro
 func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
 	var sb strings.Builder
 	sb.WriteString(domain.DefaultSystemPrompt)
-	sb.WriteString("El usuario te habla por " + channelName + ". Sé conciso.\n\n")
+	sb.WriteString("El usuario te habla por " + channelName + ". Sé conciso.\n")
+	sb.WriteString("Usá las herramientas disponibles cuando sea apropiado para ejecutar acciones.\n\n")
 
 	if r.skills == nil {
 		return sb.String()
@@ -237,12 +200,9 @@ func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
 }
 
 func (r *MessageRouter) isAuthorized(from string) bool {
-	// If allowedFrom is set, only that sender is authorized (legacy behavior).
 	if r.allowedFrom != "" {
 		return from == r.allowedFrom
 	}
-
-	// Otherwise, check if sender has been paired.
 	r.pairingMu.RLock()
 	defer r.pairingMu.RUnlock()
 	return r.pairedSenders[from]
@@ -250,13 +210,11 @@ func (r *MessageRouter) isAuthorized(from string) bool {
 
 func (r *MessageRouter) handleUnauthorized(ch domain.Channel, from, messageID, text string) {
 	trimmed := strings.TrimSpace(text)
-
 	r.pairingMu.Lock()
 	defer r.pairingMu.Unlock()
 
 	if trimmed == r.pairingCode {
 		r.pairedSenders[from] = true
-		// Rotate the pairing code after successful pairing.
 		r.pairingCode = generatePairingCode()
 		log.Printf("%s: sender %s paired successfully, new code: %s", ch.Name(), from, r.pairingCode)
 		_ = ch.SendMessage(from, "Paired! Ya estás autorizado para hablarme.")
@@ -265,17 +223,6 @@ func (r *MessageRouter) handleUnauthorized(ch domain.Channel, from, messageID, t
 
 	log.Printf("%s: unauthorized sender %s (send pairing code to connect)", ch.Name(), from)
 	_ = ch.SendMessage(from, "No te conozco. Enviame el código de vinculación para conectarte.")
-}
-
-func stripNotePrefix(text string) string {
-	lower := strings.ToLower(text)
-	prefixes := []string{"nota: ", "nota ", "recordá ", "recorda ", "recordame ", "acordate "}
-	for _, p := range prefixes {
-		if strings.HasPrefix(lower, p) {
-			return strings.TrimSpace(text[len(p):])
-		}
-	}
-	return text
 }
 
 func truncate(s string, maxLen int) string {

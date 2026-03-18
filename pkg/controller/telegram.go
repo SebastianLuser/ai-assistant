@@ -41,13 +41,22 @@ func (c *TelegramController) HandleWebhook(req web.Request) web.Response {
 		return web.NewJSONResponse(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 	}
 
-	if update.Message != nil && update.Message.Text != "" {
+	if update.Message != nil {
 		msg := update.Message
 		from := fmt.Sprintf("%d", msg.Chat.ID)
 		messageID := fmt.Sprintf("%d", msg.MessageID)
 
-		log.Printf("telegram: received message from %s (chat %s)", msg.From.Username, from)
-		go c.router.ProcessMessage(c.channel, from, messageID, msg.Text)
+		switch {
+		case msg.Text != "":
+			log.Printf("telegram: text from %s", from)
+			go c.router.ProcessMessage(c.channel, from, messageID, msg.Text)
+		case msg.Voice != nil:
+			log.Printf("telegram: voice from %s", from)
+			go c.router.ProcessAudioMessage(c.channel, from, messageID, msg.Voice.FileID)
+		case msg.Audio != nil:
+			log.Printf("telegram: audio from %s", from)
+			go c.router.ProcessAudioMessage(c.channel, from, messageID, msg.Audio.FileID)
+		}
 	}
 
 	return web.NewJSONResponse(http.StatusOK, map[string]string{"status": "ok"})

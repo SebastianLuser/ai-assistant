@@ -22,8 +22,9 @@ type Clients struct {
 	Todoist  *clients.TodoistClient
 	Gmail    *clients.GmailClient
 	ClickUp  *clients.ClickUpClient
-	Figma    *clients.FigmaClient
-	Telegram *clients.TelegramClient
+	Figma       *clients.FigmaClient
+	Telegram    *clients.TelegramClient
+	Transcriber domain.Transcriber
 }
 
 func NewClients(cfg config.Config) Clients {
@@ -42,8 +43,9 @@ func NewClients(cfg config.Config) Clients {
 		Todoist:  newTodoistClient(cfg),
 		Gmail:    newGmailClient(cfg),
 		ClickUp:  newClickUpClient(cfg),
-		Figma:    newFigmaClient(cfg),
-		Telegram: newTelegramClient(cfg),
+		Figma:       newFigmaClient(cfg),
+		Telegram:    newTelegramClient(cfg),
+		Transcriber: newTranscriber(cfg),
 	}
 }
 
@@ -197,6 +199,14 @@ func newClickUpClient(cfg config.Config) *clients.ClickUpClient {
 	}
 	log.Println("ClickUp client configured")
 	return clients.NewClickUpClient(cfg.ClickUpAPIToken, cfg.ClickUpTeamID)
+}
+
+func newTranscriber(cfg config.Config) domain.Transcriber {
+	if cfg.OpenAIAPIKey == "" {
+		return nil
+	}
+	log.Println("Transcriber configured (Whisper)")
+	return clients.NewOpenAIClient(cfg.OpenAIAPIKey, "")
 }
 
 func newTelegramClient(cfg config.Config) *clients.TelegramClient {

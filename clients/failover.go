@@ -51,3 +51,20 @@ func (f *FailoverProvider) CompleteJSON(system, userMessage string, target any, 
 	log.Printf("ai-failover: primary failed (%v), trying fallback", err)
 	return f.fallback.CompleteJSON(system, userMessage, target, opts...)
 }
+
+// CompleteWithTools implements ToolUseProvider with failover.
+func (f *FailoverProvider) CompleteWithTools(system string, messages []domain.Message, tools []domain.ToolDefinition, opts ...domain.CompletionOption) ([]domain.ContentBlock, string, error) {
+	if tp, ok := f.primary.(domain.ToolUseProvider); ok {
+		blocks, stop, err := tp.CompleteWithTools(system, messages, tools, opts...)
+		if err == nil {
+			return blocks, stop, nil
+		}
+		log.Printf("ai-failover: primary tool use failed (%v), trying fallback", err)
+	}
+
+	if tp, ok := f.fallback.(domain.ToolUseProvider); ok {
+		return tp.CompleteWithTools(system, messages, tools, opts...)
+	}
+
+	return nil, "", domain.Wrap(domain.ErrClaudeAPI, "no tool use provider available")
+}

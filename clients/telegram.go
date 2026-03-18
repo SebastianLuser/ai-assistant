@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -136,6 +137,51 @@ func (c *TelegramClient) SendChatAction(chatID, action string) error {
 	defer resp.Body.Close()
 
 	return nil
+}
+
+// DownloadMedia downloads a file by file_id from Telegram.
+// Implements domain.MediaDownloader.
+func (c *TelegramClient) DownloadMedia(fileID string) ([]byte, string, error) {
+	// Step 1: get file path
+	url := telegramBaseURL + c.token + "/getFile?file_id=" + fileID
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, "", fmt.Errorf("telegram: get file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		OK     bool `json:"ok"`
+		Result struct {
+			FilePath string `json:"file_path"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, "", fmt.Errorf("telegram: parse file info: %w", err)
+	}
+
+	// Step 2: download
+	dlURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", c.token, result.Result.FilePath)
+	dlResp, err := c.httpClient.Get(dlURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("telegram: download file: %w", err)
+	}
+	defer dlResp.Body.Close()
+
+	data, err := io.ReadAll(dlResp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("telegram: read file: %w", err)
+	}
+
+	// Infer mime type from file extension
+	mime := "audio/ogg"
+	if strings.HasSuffix(result.Result.FilePath, ".mp3") {
+		mime = "audio/mpeg"
+	} else if strings.HasSuffix(result.Result.FilePath, ".m4a") {
+		mime = "audio/mp4"
+	}
+
+	return data, mime, nil
 }
 
 // SetWebhook registers a webhook URL with Telegram.

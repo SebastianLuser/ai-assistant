@@ -3,8 +3,10 @@ package clients
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -12,9 +14,12 @@ import (
 )
 
 const (
-	openaiDefaultBaseURL   = "https://api.openai.com/v1/chat/completions"
-	openaiDefaultMaxTokens = 2048
-	openaiDefaultTimeout   = 30 * time.Second
+	openaiDefaultBaseURL      = "https://api.openai.com/v1/chat/completions"
+	openaiTranscriptionURL    = "https://api.openai.com/v1/audio/transcriptions"
+	openaiDefaultMaxTokens    = 2048
+	openaiDefaultTimeout      = 30 * time.Second
+	openaiTranscriptionTimeout = 60 * time.Second
+	whisperModel              = "whisper-1"
 )
 
 // Compile-time check: *OpenAIClient implements domain.AIProvider.
@@ -136,6 +141,81 @@ func (c *OpenAIClient) CompleteMessages(system string, messages []domain.Message
 
 	return text, nil
 }
+
+// Transcribe sends audio data to the Whisper API and returns the transcription.
+func (c *OpenAIClient) Transcribe(audioData []byte, mimeType string) (string, error) {
+	ext := mimeToExt(mimeType)
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+
+	if err := w.WriteField("model", whisperModel); err != nil {
+		return "", fmt.Errorf("whisper: write model field: %w", err)
+	}
+	if err := w.WriteField("language", "es"); err != nil {
+		return "", fmt.Errorf("whisper: write language field: %w", err)
+	}
+
+	part, err := w.CreateFormFile("file", "audio"+ext)
+	if err != nil {
+		return "", fmt.Errorf("whisper: create form file: %w", err)
+	}
+	if _, err := part.Write(audioData); err != nil {
+		return "", fmt.Errorf("whisper: write audio data: %w", err)
+	}
+	w.Close()
+
+	req, err := http.NewRequest(http.MethodPost, openaiTranscriptionURL, &buf)
+	if err != nil {
+		return "", fmt.Errorf("whisper: create request: %w", err)
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set(headerAuthorization, "Bearer "+c.apiKey)
+
+	client := &http.Client{Timeout: openaiTranscriptionTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("whisper: send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("whisper: read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("whisper: api error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("whisper: parse response: %w", err)
+	}
+
+	return result.Text, nil
+}
+
+func mimeToExt(mime string) string {
+	switch mime {
+	case "audio/ogg", "audio/ogg; codecs=opus":
+		return ".ogg"
+	case "audio/mpeg":
+		return ".mp3"
+	case "audio/mp4":
+		return ".m4a"
+	case "audio/wav":
+		return ".wav"
+	case "audio/webm":
+		return ".webm"
+	default:
+		return ".ogg"
+	}
+}
+
+var _ domain.Transcriber = (*OpenAIClient)(nil)
 
 func (c *OpenAIClient) CompleteJSON(system, userMessage string, target any, opts ...domain.CompletionOption) error {
 	text, err := c.Complete(system, userMessage, opts...)

@@ -11,10 +11,29 @@ type TelegramUpdate struct {
 
 // TelegramMessage represents a Telegram message.
 type TelegramMessage struct {
-	MessageID int           `json:"message_id"`
-	From      *TelegramUser `json:"from,omitempty"`
-	Chat      TelegramChat  `json:"chat"`
-	Text      string        `json:"text"`
+	MessageID int            `json:"message_id"`
+	From      *TelegramUser  `json:"from,omitempty"`
+	Chat      TelegramChat   `json:"chat"`
+	Text      string         `json:"text"`
+	Voice     *TelegramVoice `json:"voice,omitempty"`
+	Audio     *TelegramAudio `json:"audio,omitempty"`
+}
+
+// TelegramVoice represents a Telegram voice message (ogg/opus).
+type TelegramVoice struct {
+	FileID   string `json:"file_id"`
+	Duration int    `json:"duration"`
+	MimeType string `json:"mime_type"`
+	FileSize int    `json:"file_size"`
+}
+
+// TelegramAudio represents a Telegram audio file.
+type TelegramAudio struct {
+	FileID   string `json:"file_id"`
+	Duration int    `json:"duration"`
+	MimeType string `json:"mime_type"`
+	FileSize int    `json:"file_size"`
+	Title    string `json:"title"`
 }
 
 // TelegramUser represents a Telegram user.

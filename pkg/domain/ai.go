@@ -1,9 +1,11 @@
 package domain
 
 // Message represents a chat message for any AI provider.
+// For simple text, use Content. For tool use, use ContentBlocks.
 type Message struct {
-	Role    string
-	Content string
+	Role          string         `json:"role"`
+	Content       string         `json:"content,omitempty"`
+	ContentBlocks []ContentBlock `json:"content_blocks,omitempty"`
 }
 
 // Usage tracks token consumption from an AI API call.
@@ -46,4 +48,19 @@ type AIProvider interface {
 	Complete(system, userMessage string, opts ...CompletionOption) (string, error)
 	CompleteMessages(system string, messages []Message, opts ...CompletionOption) (string, error)
 	CompleteJSON(system, userMessage string, target any, opts ...CompletionOption) error
+}
+
+// ToolUseProvider extends AIProvider with tool/function calling support.
+type ToolUseProvider interface {
+	CompleteWithTools(system string, messages []Message, tools []ToolDefinition, opts ...CompletionOption) ([]ContentBlock, string, error)
+}
+
+// Transcriber converts audio to text (e.g. Whisper).
+type Transcriber interface {
+	Transcribe(audioData []byte, mimeType string) (string, error)
+}
+
+// MediaDownloader downloads media files from a messaging platform.
+type MediaDownloader interface {
+	DownloadMedia(mediaID string) ([]byte, string, error) // returns data, mimeType, error
 }

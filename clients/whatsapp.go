@@ -108,6 +108,52 @@ func splitMessage(text string, maxLen int) []string {
 	return chunks
 }
 
+// DownloadMedia downloads a media file from WhatsApp Cloud API.
+// First gets the download URL, then downloads the binary data.
+func (c *WhatsAppClient) DownloadMedia(mediaID string) ([]byte, string, error) {
+	// Step 1: Get download URL
+	urlEndpoint := fmt.Sprintf("https://graph.facebook.com/v18.0/%s", mediaID)
+	req, err := http.NewRequest(http.MethodGet, urlEndpoint, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("whatsapp: create media request: %w", err)
+	}
+	req.Header.Set(headerAuthorization, "Bearer "+c.accessToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("whatsapp: get media url: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var mediaInfo struct {
+		URL      string `json:"url"`
+		MimeType string `json:"mime_type"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&mediaInfo); err != nil {
+		return nil, "", fmt.Errorf("whatsapp: parse media info: %w", err)
+	}
+
+	// Step 2: Download binary data
+	dlReq, err := http.NewRequest(http.MethodGet, mediaInfo.URL, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("whatsapp: create download request: %w", err)
+	}
+	dlReq.Header.Set(headerAuthorization, "Bearer "+c.accessToken)
+
+	dlResp, err := c.httpClient.Do(dlReq)
+	if err != nil {
+		return nil, "", fmt.Errorf("whatsapp: download media: %w", err)
+	}
+	defer dlResp.Body.Close()
+
+	data, err := io.ReadAll(dlResp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("whatsapp: read media: %w", err)
+	}
+
+	return data, mediaInfo.MimeType, nil
+}
+
 // Name implements domain.Channel.
 func (c *WhatsAppClient) Name() string { return "whatsapp" }
 

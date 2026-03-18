@@ -32,23 +32,33 @@ type ClaudeClient struct {
 
 type claudeMessage struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content any    `json:"content"` // string or []claudeContentBlock
+}
+
+type claudeContentBlock struct {
+	Type      string         `json:"type"`
+	Text      string         `json:"text,omitempty"`
+	ID        string         `json:"id,omitempty"`
+	Name      string         `json:"name,omitempty"`
+	Input     map[string]any `json:"input,omitempty"`
+	ToolUseID string         `json:"tool_use_id,omitempty"`
+	Content   string         `json:"content,omitempty"`
+	IsError   bool           `json:"is_error,omitempty"`
 }
 
 type claudeRequest struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	System    string          `json:"system,omitempty"`
-	Messages  []claudeMessage `json:"messages"`
+	Model     string                `json:"model"`
+	MaxTokens int                   `json:"max_tokens"`
+	System    string                `json:"system,omitempty"`
+	Messages  []claudeMessage       `json:"messages"`
+	Tools     []domain.ToolDefinition `json:"tools,omitempty"`
 }
 
 type claudeResponse struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
-	Usage domain.Usage `json:"usage"`
-	Error *struct {
+	Content    []claudeContentBlock `json:"content"`
+	StopReason string               `json:"stop_reason"`
+	Usage      domain.Usage         `json:"usage"`
+	Error      *struct {
 		Type    string `json:"type"`
 		Message string `json:"message"`
 	} `json:"error"`
@@ -103,30 +113,74 @@ func (c *ClaudeClient) CompleteJSON(system, userMessage string, target any, opts
 	return nil
 }
 
-func (c *ClaudeClient) completeMessagesWithUsage(system string, messages []domain.Message, opts ...domain.CompletionOption) (string, domain.Usage, error) {
-	cfg := domain.ApplyOptions(claudeDefaultMaxTokens, opts...)
-
-	// Convert domain.Message to Claude's wire format.
-	apiMsgs := make([]claudeMessage, len(messages))
-	for i, m := range messages {
-		apiMsgs[i] = claudeMessage{Role: m.Role, Content: m.Content}
-	}
+// CompleteWithTools sends a request with tool definitions and returns content blocks + stop reason.
+func (c *ClaudeClient) CompleteWithTools(system string, messages []domain.Message, tools []domain.ToolDefinition, opts ...domain.CompletionOption) ([]domain.ContentBlock, string, error) {
+	cfg := domain.ApplyOptions(4096, opts...)
 
 	reqBody := claudeRequest{
 		Model:     c.model,
 		MaxTokens: cfg.MaxTokens,
 		System:    system,
-		Messages:  apiMsgs,
+		Messages:  domainToClaudeMessages(messages),
+		Tools:     tools,
 	}
 
+	result, err := c.doRequest(reqBody)
+	if err != nil {
+		return nil, "", err
+	}
+
+	blocks := make([]domain.ContentBlock, len(result.Content))
+	for i, b := range result.Content {
+		blocks[i] = domain.ContentBlock{
+			Type:  b.Type,
+			Text:  b.Text,
+			ID:    b.ID,
+			Name:  b.Name,
+			Input: b.Input,
+		}
+	}
+
+	log.Printf("claude: model=%s in=%d out=%d stop=%s", c.model, result.Usage.InputTokens, result.Usage.OutputTokens, result.StopReason)
+	return blocks, result.StopReason, nil
+}
+
+var _ domain.ToolUseProvider = (*ClaudeClient)(nil)
+
+func (c *ClaudeClient) completeMessagesWithUsage(system string, messages []domain.Message, opts ...domain.CompletionOption) (string, domain.Usage, error) {
+	cfg := domain.ApplyOptions(claudeDefaultMaxTokens, opts...)
+
+	reqBody := claudeRequest{
+		Model:     c.model,
+		MaxTokens: cfg.MaxTokens,
+		System:    system,
+		Messages:  domainToClaudeMessages(messages),
+	}
+
+	result, err := c.doRequest(reqBody)
+	if err != nil {
+		return "", domain.Usage{}, err
+	}
+
+	// Extract first text block.
+	for _, b := range result.Content {
+		if b.Type == "text" {
+			return b.Text, result.Usage, nil
+		}
+	}
+
+	return "", result.Usage, domain.ErrClaudeEmpty
+}
+
+func (c *ClaudeClient) doRequest(reqBody claudeRequest) (claudeResponse, error) {
 	body, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", domain.Usage{}, domain.Wrapf(domain.ErrClaudeMarshal, err)
+		return claudeResponse{}, domain.Wrapf(domain.ErrClaudeMarshal, err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, c.baseURL, bytes.NewReader(body))
 	if err != nil {
-		return "", domain.Usage{}, domain.Wrapf(domain.ErrClaudeRequest, err)
+		return claudeResponse{}, domain.Wrapf(domain.ErrClaudeRequest, err)
 	}
 
 	req.Header.Set(headerContentType, contentTypeJSON)
@@ -135,27 +189,57 @@ func (c *ClaudeClient) completeMessagesWithUsage(system string, messages []domai
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", domain.Usage{}, domain.Wrapf(domain.ErrClaudeSend, err)
+		return claudeResponse{}, domain.Wrapf(domain.ErrClaudeSend, err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", domain.Usage{}, domain.Wrapf(domain.ErrClaudeRead, err)
+		return claudeResponse{}, domain.Wrapf(domain.ErrClaudeRead, err)
 	}
 
 	var result claudeResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", domain.Usage{}, domain.Wrapf(domain.ErrClaudeUnmarshal, err)
+		return claudeResponse{}, domain.Wrapf(domain.ErrClaudeUnmarshal, err)
 	}
 
 	if result.Error != nil {
-		return "", domain.Usage{}, domain.Wrap(domain.ErrClaudeAPI, result.Error.Type+": "+result.Error.Message)
+		return claudeResponse{}, domain.Wrap(domain.ErrClaudeAPI, result.Error.Type+": "+result.Error.Message)
 	}
 
 	if len(result.Content) == 0 {
-		return "", domain.Usage{}, domain.ErrClaudeEmpty
+		return claudeResponse{}, domain.ErrClaudeEmpty
 	}
 
-	return result.Content[0].Text, result.Usage, nil
+	return result, nil
+}
+
+// domainToClaudeMessages converts domain messages to Claude API format.
+// Handles both simple text and structured content blocks (for tool use).
+func domainToClaudeMessages(messages []domain.Message) []claudeMessage {
+	apiMsgs := make([]claudeMessage, len(messages))
+	for i, m := range messages {
+		if len(m.ContentBlocks) > 0 {
+			blocks := make([]claudeContentBlock, len(m.ContentBlocks))
+			for j, b := range m.ContentBlocks {
+				blocks[j] = claudeContentBlock{
+					Type:      b.Type,
+					Text:      b.Text,
+					ID:        b.ID,
+					Name:      b.Name,
+					Input:     b.Input,
+					ToolUseID: b.ID,
+					Content:   b.Text,
+				}
+				// Fix: tool_result blocks use content+tool_use_id, not text
+				if b.Type == "tool_result" {
+					blocks[j].Text = ""
+				}
+			}
+			apiMsgs[i] = claudeMessage{Role: m.Role, Content: blocks}
+		} else {
+			apiMsgs[i] = claudeMessage{Role: m.Role, Content: m.Content}
+		}
+	}
+	return apiMsgs
 }

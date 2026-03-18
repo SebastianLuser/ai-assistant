@@ -73,13 +73,19 @@ func (c *WhatsAppController) HandleWebhook(req web.Request) web.Response {
 		return web.NewJSONResponse(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 	}
 
-	messages := domain.ExtractTextMessages(payload)
-	for _, msg := range messages {
+	textMsgs := domain.ExtractTextMessages(payload)
+	for _, msg := range textMsgs {
 		go c.router.ProcessMessage(c.channel, msg.From, msg.ID, msg.Text.Body)
 	}
 
-	if len(messages) > 0 {
-		log.Printf("whatsapp: webhook received %d text message(s)", len(messages))
+	audioMsgs := domain.ExtractAudioMessages(payload)
+	for _, msg := range audioMsgs {
+		go c.router.ProcessAudioMessage(c.channel, msg.From, msg.ID, msg.Audio.ID)
+	}
+
+	total := len(textMsgs) + len(audioMsgs)
+	if total > 0 {
+		log.Printf("whatsapp: webhook received %d text + %d audio message(s)", len(textMsgs), len(audioMsgs))
 	}
 
 	return web.NewJSONResponse(http.StatusOK, map[string]string{"status": "ok"})

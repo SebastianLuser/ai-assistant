@@ -7,6 +7,7 @@ import (
 	"asistente/internal/hooks"
 	"asistente/internal/skills"
 	"asistente/pkg/controller"
+	"asistente/pkg/domain"
 	"asistente/pkg/service"
 	"asistente/pkg/usecase"
 	"asistente/web"
@@ -101,7 +102,19 @@ func NewControllers(
 	// Shared MessageRouter for all messaging channels.
 	var router *usecase.MessageRouter
 	if cl.WhatsApp != nil || cl.Telegram != nil {
-		router = usecase.NewMessageRouter(chatUC, financeUC, memorySvc, embedder, cl.AI, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
+		toolReg := usecase.BuildToolRegistry(financeUC, memorySvc, embedder, cl.Calendar, cl.Gmail, cl.Todoist, cl.GitHub, cl.Jira, cl.Spotify, cl.Notion, cl.Obsidian)
+
+		var agent *usecase.AgentUseCase
+		if tp, ok := cl.AI.(domain.ToolUseProvider); ok {
+			agent = usecase.NewAgentUseCase(tp, toolReg)
+		}
+
+		var transcriber domain.Transcriber
+		if cl.Transcriber != nil {
+			transcriber = cl.Transcriber
+		}
+
+		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, transcriber, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
 	}
 
 	if router != nil {
