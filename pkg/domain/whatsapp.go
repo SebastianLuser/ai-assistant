@@ -49,12 +49,14 @@ type WhatsAppProfile struct {
 
 // WhatsAppIncomingMessage represents a single incoming message.
 type WhatsAppIncomingMessage struct {
-	From      string           `json:"from"`
-	ID        string           `json:"id"`
-	Timestamp string           `json:"timestamp"`
-	Type      string           `json:"type"`
-	Text      WhatsAppTextBody  `json:"text,omitempty"`
-	Audio     *WhatsAppAudioBody `json:"audio,omitempty"`
+	From      string             `json:"from"`
+	ID        string             `json:"id"`
+	Timestamp string             `json:"timestamp"`
+	Type      string             `json:"type"`
+	Text      WhatsAppTextBody    `json:"text,omitempty"`
+	Audio     *WhatsAppAudioBody  `json:"audio,omitempty"`
+	Image     *WhatsAppImageBody  `json:"image,omitempty"`
+	Document  *WhatsAppDocBody    `json:"document,omitempty"`
 }
 
 // WhatsAppTextBody contains the text content of a message.
@@ -66,6 +68,21 @@ type WhatsAppTextBody struct {
 type WhatsAppAudioBody struct {
 	ID       string `json:"id"`
 	MimeType string `json:"mime_type"`
+}
+
+// WhatsAppImageBody contains image message metadata.
+type WhatsAppImageBody struct {
+	ID       string `json:"id"`
+	MimeType string `json:"mime_type"`
+	Caption  string `json:"caption"`
+}
+
+// WhatsAppDocBody contains document message metadata.
+type WhatsAppDocBody struct {
+	ID       string `json:"id"`
+	MimeType string `json:"mime_type"`
+	Filename string `json:"filename"`
+	Caption  string `json:"caption"`
 }
 
 // WhatsAppStatus represents a message status update (sent, delivered, read).
@@ -101,6 +118,24 @@ func ExtractTextMessages(payload WhatsAppWebhookPayload) []WhatsAppIncomingMessa
 		for _, change := range entry.Changes {
 			for _, msg := range change.Value.Messages {
 				if msg.Type == "text" && msg.Text.Body != "" {
+					msgs = append(msgs, msg)
+				}
+			}
+		}
+	}
+	return msgs
+}
+
+// ExtractImageMessages returns all image/document messages from a webhook payload.
+func ExtractImageMessages(payload WhatsAppWebhookPayload) []WhatsAppIncomingMessage {
+	var msgs []WhatsAppIncomingMessage
+	for _, entry := range payload.Entry {
+		for _, change := range entry.Changes {
+			for _, msg := range change.Value.Messages {
+				if msg.Type == "image" && msg.Image != nil {
+					msgs = append(msgs, msg)
+				}
+				if msg.Type == "document" && msg.Document != nil {
 					msgs = append(msgs, msg)
 				}
 			}

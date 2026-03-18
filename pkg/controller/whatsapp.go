@@ -83,7 +83,21 @@ func (c *WhatsAppController) HandleWebhook(req web.Request) web.Response {
 		go c.router.ProcessAudioMessage(c.channel, msg.From, msg.ID, msg.Audio.ID)
 	}
 
-	total := len(textMsgs) + len(audioMsgs)
+	imgMsgs := domain.ExtractImageMessages(payload)
+	for _, msg := range imgMsgs {
+		mediaID := ""
+		caption := ""
+		if msg.Image != nil {
+			mediaID = msg.Image.ID
+			caption = msg.Image.Caption
+		} else if msg.Document != nil {
+			mediaID = msg.Document.ID
+			caption = msg.Document.Caption
+		}
+		go c.router.ProcessImageMessage(c.channel, msg.From, msg.ID, mediaID, caption)
+	}
+
+	total := len(textMsgs) + len(audioMsgs) + len(imgMsgs)
 	if total > 0 {
 		log.Printf("whatsapp: webhook received %d text + %d audio message(s)", len(textMsgs), len(audioMsgs))
 	}

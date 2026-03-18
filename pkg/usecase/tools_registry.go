@@ -2,12 +2,43 @@ package usecase
 
 import (
 	"fmt"
+	"log"
+	"sync"
 	"time"
 
 	"asistente/clients"
+	"asistente/internal/skills"
 	"asistente/pkg/domain"
 	"asistente/pkg/service"
 )
+
+// ReminderSender is called when a reminder fires.
+type ReminderSender func(text string)
+
+// ReminderManager tracks pending reminders so they can be created from tools.
+type ReminderManager struct {
+	mu       sync.Mutex
+	sender   ReminderSender
+}
+
+// NewReminderManager creates a reminder manager.
+func NewReminderManager(sender ReminderSender) *ReminderManager {
+	return &ReminderManager{sender: sender}
+}
+
+// Schedule creates a one-shot reminder that fires after the given duration.
+func (rm *ReminderManager) Schedule(after time.Duration, text string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	go func() {
+		time.Sleep(after)
+		log.Printf("reminder: firing: %s", text)
+		if rm.sender != nil {
+			rm.sender(text)
+		}
+	}()
+}
 
 // BuildToolRegistry creates a ToolRegistry with handlers for all available integrations.
 // Only registers tools for non-nil clients.
@@ -23,6 +54,8 @@ func BuildToolRegistry(
 	spotifyClient *clients.SpotifyClient,
 	notionClient *clients.NotionClient,
 	obsidianClient *clients.ObsidianVault,
+	skillWriter skills.SkillWriter,
+	reminderMgr *ReminderManager,
 ) *ToolRegistry {
 	r := NewToolRegistry()
 
@@ -265,6 +298,73 @@ func BuildToolRegistry(
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
 		}, func(input map[string]any) (string, error) {
 			return "Canción siguiente", spotifyClient.Next()
+		})
+	}
+
+	// --- Self-modifying skills ---
+	if skillWriter != nil {
+		r.Register(domain.ToolDefinition{
+			Name:        "create_skill",
+			Description: "Crea una nueva habilidad/skill para el asistente. Usá esto cuando el usuario te pida recordar un comportamiento, estilo, o conocimiento específico para futuras conversaciones.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"name":        map[string]any{"type": "string", "description": "Nombre corto del skill (slug)"},
+					"description": map[string]any{"type": "string", "description": "Descripción breve de qué hace el skill"},
+					"content":     map[string]any{"type": "string", "description": "Instrucciones del skill (system prompt)"},
+					"tags":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Tags para clasificar el skill"},
+				},
+				"required": []string{"name", "content"},
+			},
+		}, func(input map[string]any) (string, error) {
+			enabled := true
+			var tags []string
+			if t, ok := input["tags"].([]any); ok {
+				for _, v := range t {
+					if s, ok := v.(string); ok {
+						tags = append(tags, s)
+					}
+				}
+			}
+			skill := skills.Skill{
+				Name:        inputString(input, "name"),
+				Description: inputString(input, "description"),
+				Content:     inputString(input, "content"),
+				Tags:        tags,
+				Enabled:     &enabled,
+			}
+			if err := skillWriter.Save(skill); err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("Skill '%s' creado. Se activará en las próximas conversaciones.", skill.Name), nil
+		})
+	}
+
+	// --- Scheduled reminders ---
+	if reminderMgr != nil {
+		r.Register(domain.ToolDefinition{
+			Name:        "set_reminder",
+			Description: "Programa un recordatorio que se enviará después de un tiempo. Ej: 'recordame en 30 minutos que tengo que llamar'.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"message": map[string]any{"type": "string", "description": "Texto del recordatorio"},
+					"minutes": map[string]any{"type": "number", "description": "En cuántos minutos recordar"},
+				},
+				"required": []string{"message", "minutes"},
+			},
+		}, func(input map[string]any) (string, error) {
+			msg := inputString(input, "message")
+			minutes := 0.0
+			if m, ok := input["minutes"].(float64); ok {
+				minutes = m
+			}
+			if minutes <= 0 {
+				return "", fmt.Errorf("minutes must be positive")
+			}
+			duration := time.Duration(minutes) * time.Minute
+			reminderMgr.Schedule(duration, "⏰ Recordatorio: "+msg)
+			return fmt.Sprintf("Recordatorio programado para dentro de %.0f minutos.", minutes), nil
 		})
 	}
 

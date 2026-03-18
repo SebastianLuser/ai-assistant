@@ -3,10 +3,12 @@ package usecase
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"asistente/internal/hooks"
 	"asistente/internal/skills"
@@ -72,7 +74,16 @@ func generatePairingCode() string {
 }
 
 // ProcessMessage handles an incoming text message from any channel.
-func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text string) {
+// Optional meta can be passed for group chat routing.
+func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text string, meta ...domain.MessageMeta) {
+	// Group chat: only respond if mentioned.
+	if len(meta) > 0 && meta[0].IsGroup {
+		botName := strings.ToLower(meta[0].BotName)
+		if botName != "" && !strings.Contains(strings.ToLower(text), "@"+botName) {
+			return // ignore group messages that don't mention the bot
+		}
+	}
+
 	if !r.isAuthorized(from) {
 		r.handleUnauthorized(ch, from, messageID, text)
 		return
@@ -140,6 +151,50 @@ func (r *MessageRouter) ProcessAudioMessage(ch domain.Channel, from, messageID, 
 	r.ProcessMessage(ch, from, messageID, text)
 }
 
+// ProcessImageMessage downloads an image and sends it to Claude with vision.
+func (r *MessageRouter) ProcessImageMessage(ch domain.Channel, from, messageID, mediaID, caption string) {
+	if !r.isAuthorized(from) {
+		r.handleUnauthorized(ch, from, messageID, "")
+		return
+	}
+
+	_ = ch.AckMessage(messageID)
+
+	downloader, ok := ch.(domain.MediaDownloader)
+	if !ok {
+		_ = ch.SendMessage(from, "No puedo procesar imágenes desde este canal.")
+		return
+	}
+
+	imgData, mimeType, err := downloader.DownloadMedia(mediaID)
+	if err != nil {
+		log.Printf("%s: failed to download image: %v", ch.Name(), err)
+		_ = ch.SendMessage(from, "No pude descargar la imagen.")
+		return
+	}
+
+	log.Printf("%s: processing image from %s (%d bytes, %s)", ch.Name(), from, len(imgData), mimeType)
+
+	// Build a message with image as base64 for Claude vision
+	b64 := base64.StdEncoding.EncodeToString(imgData)
+	prompt := caption
+	if prompt == "" {
+		prompt = "¿Qué ves en esta imagen?"
+	}
+
+	text := "[Imagen adjunta: data:" + mimeType + ";base64," + truncate(b64, 100) + "...]\n" + prompt
+
+	response, err := r.handleMessage(from, text, ch.Name())
+	if err != nil {
+		log.Printf("%s: error processing image: %v", ch.Name(), err)
+		response = "No pude procesar la imagen."
+	}
+
+	if err := ch.SendMessage(from, response); err != nil {
+		log.Printf("%s: failed to send reply: %v", ch.Name(), err)
+	}
+}
+
 func (r *MessageRouter) handleMessage(from, text, channelName string) (string, error) {
 	sessionID := channelName + "-" + from
 
@@ -171,10 +226,26 @@ func (r *MessageRouter) handleMessage(from, text, channelName string) (string, e
 }
 
 func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
+	now := time.Now()
 	var sb strings.Builder
 	sb.WriteString(domain.DefaultSystemPrompt)
 	sb.WriteString("El usuario te habla por " + channelName + ". Sé conciso.\n")
 	sb.WriteString("Usá las herramientas disponibles cuando sea apropiado para ejecutar acciones.\n\n")
+
+	// Context injection: dynamic context based on current state.
+	sb.WriteString("## Contexto actual\n")
+	sb.WriteString("Fecha: " + now.Format("Monday 02/01/2006") + "\n")
+	sb.WriteString("Hora: " + now.Format("15:04") + "\n")
+	dayPeriod := "madrugada"
+	switch h := now.Hour(); {
+	case h >= 6 && h < 12:
+		dayPeriod = "mañana"
+	case h >= 12 && h < 18:
+		dayPeriod = "tarde"
+	case h >= 18 && h < 22:
+		dayPeriod = "noche"
+	}
+	sb.WriteString("Momento del día: " + dayPeriod + "\n\n")
 
 	if r.skills == nil {
 		return sb.String()

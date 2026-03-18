@@ -12,7 +12,7 @@ import (
 )
 
 func TestTelegramController_HandleWebhook_InvalidSecretToken(t *testing.T) {
-	ctrl := NewTelegramController(nil, nil, "my-secret")
+	ctrl := NewTelegramController(nil, nil, "my-secret", "")
 	req := test.NewMockRequest().
 		WithBody(`{}`).
 		WithHeader("X-Telegram-Bot-Api-Secret-Token", "wrong")
@@ -23,7 +23,7 @@ func TestTelegramController_HandleWebhook_InvalidSecretToken(t *testing.T) {
 }
 
 func TestTelegramController_HandleWebhook_ValidSecretToken(t *testing.T) {
-	ctrl := NewTelegramController(nil, nil, "my-secret")
+	ctrl := NewTelegramController(nil, nil, "my-secret", "")
 	update := domain.TelegramUpdate{UpdateID: 1}
 	body, _ := json.Marshal(update)
 
@@ -37,7 +37,7 @@ func TestTelegramController_HandleWebhook_ValidSecretToken(t *testing.T) {
 }
 
 func TestTelegramController_HandleWebhook_NoSecretConfigured(t *testing.T) {
-	ctrl := NewTelegramController(nil, nil, "")
+	ctrl := NewTelegramController(nil, nil, "", "")
 	update := domain.TelegramUpdate{UpdateID: 1}
 	body, _ := json.Marshal(update)
 
@@ -49,7 +49,7 @@ func TestTelegramController_HandleWebhook_NoSecretConfigured(t *testing.T) {
 }
 
 func TestTelegramController_HandleWebhook_InvalidPayload(t *testing.T) {
-	ctrl := NewTelegramController(nil, nil, "")
+	ctrl := NewTelegramController(nil, nil, "", "")
 	req := test.NewMockRequest().WithBody(`{invalid`)
 
 	resp := ctrl.HandleWebhook(req)

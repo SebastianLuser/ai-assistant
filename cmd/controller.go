@@ -102,7 +102,20 @@ func NewControllers(
 	// Shared MessageRouter for all messaging channels.
 	var router *usecase.MessageRouter
 	if cl.WhatsApp != nil || cl.Telegram != nil {
-		toolReg := usecase.BuildToolRegistry(financeUC, memorySvc, embedder, cl.Calendar, cl.Gmail, cl.Todoist, cl.GitHub, cl.Jira, cl.Spotify, cl.Notion, cl.Obsidian)
+		// Reminder manager sends reminders via the first available channel.
+		var reminderMgr *usecase.ReminderManager
+		if cl.WhatsApp != nil && cfg.WhatsAppTo != "" {
+			reminderMgr = usecase.NewReminderManager(func(text string) {
+				_ = cl.WhatsApp.SendTextMessage(cfg.WhatsAppTo, text)
+			})
+		}
+
+		var sw skills.SkillWriter
+		if writer, ok := skillsLoader.(skills.SkillWriter); ok {
+			sw = writer
+		}
+
+		toolReg := usecase.BuildToolRegistry(financeUC, memorySvc, embedder, cl.Calendar, cl.Gmail, cl.Todoist, cl.GitHub, cl.Jira, cl.Spotify, cl.Notion, cl.Obsidian, sw, reminderMgr)
 
 		var agent *usecase.AgentUseCase
 		if tp, ok := cl.AI.(domain.ToolUseProvider); ok {
@@ -130,7 +143,7 @@ func NewControllers(
 	}
 
 	if cl.Telegram != nil && router != nil {
-		c.Telegram = controller.NewTelegramController(router, cl.Telegram, cfg.TelegramSecretToken)
+		c.Telegram = controller.NewTelegramController(router, cl.Telegram, cfg.TelegramSecretToken, cfg.TelegramBotUsername)
 	}
 
 	return c
