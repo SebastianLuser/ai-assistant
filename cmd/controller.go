@@ -118,8 +118,10 @@ func NewControllers(
 		toolReg := usecase.BuildToolRegistry(financeUC, memorySvc, embedder, cl.Calendar, cl.Gmail, cl.Todoist, cl.GitHub, cl.Jira, cl.Spotify, cl.Notion, cl.Obsidian, sw, reminderMgr)
 
 		var agent *usecase.AgentUseCase
+		var orchestrator *usecase.AgentOrchestrator
 		if tp, ok := cl.AI.(domain.ToolUseProvider); ok {
 			agent = usecase.NewAgentUseCase(tp, toolReg)
+			orchestrator = usecase.NewAgentOrchestrator(tp, toolReg, usecase.DefaultAgents())
 		}
 
 		var transcriber domain.Transcriber
@@ -127,7 +129,7 @@ func NewControllers(
 			transcriber = cl.Transcriber
 		}
 
-		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, transcriber, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
+		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, orchestrator, transcriber, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
 	}
 
 	if router != nil {

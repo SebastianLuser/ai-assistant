@@ -21,6 +21,7 @@ type MessageRouter struct {
 	conversation *ConversationUseCase
 	ai           domain.AIProvider
 	agent        *AgentUseCase
+	orchestrator *AgentOrchestrator
 	transcriber  domain.Transcriber
 	skills       skills.SkillProvider
 	hooks        *hooks.Registry
@@ -35,6 +36,7 @@ func NewMessageRouter(
 	conversation *ConversationUseCase,
 	ai domain.AIProvider,
 	agent *AgentUseCase,
+	orchestrator *AgentOrchestrator,
 	transcriber domain.Transcriber,
 	skillsProvider skills.SkillProvider,
 	hooksRegistry *hooks.Registry,
@@ -48,6 +50,7 @@ func NewMessageRouter(
 	return &MessageRouter{
 		conversation:  conversation,
 		ai:            ai,
+		orchestrator:  orchestrator,
 		agent:         agent,
 		transcriber:   transcriber,
 		skills:        skillsProvider,
@@ -209,9 +212,11 @@ func (r *MessageRouter) handleMessage(from, text, channelName string) (string, e
 
 	systemPrompt := r.buildSystemPrompt(text, channelName)
 
-	// Use agent with tools if available, otherwise fall back to plain chat.
+	// Use orchestrator > agent > plain chat (in order of capability).
 	var response string
-	if r.agent != nil {
+	if r.orchestrator != nil {
+		response, err = r.orchestrator.Run(systemPrompt, messages)
+	} else if r.agent != nil {
 		response, err = r.agent.Run(systemPrompt, messages)
 	} else {
 		response, err = r.ai.CompleteMessages(systemPrompt, messages)
