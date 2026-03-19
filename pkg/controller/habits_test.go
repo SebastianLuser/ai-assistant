@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"asistente/pkg/domain"
 	"asistente/pkg/usecase"
 	"asistente/test"
 
@@ -80,4 +81,40 @@ func TestHabitController_GetToday_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.Status)
 	repo.AssertExpectations(t)
+}
+
+func TestHabitController_PostLog_StoreError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("LogHabit", "exercise").Return(domain.ErrStoreOpen)
+	uc := usecase.NewHabitUseCase(repo)
+	ctrl := NewHabitController(uc)
+	req := test.NewMockRequest().WithBody(validHabitBody)
+
+	resp := ctrl.PostLog(req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Status)
+}
+
+func TestHabitController_GetStreak_StoreError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("GetHabitStreak", "exercise").Return(0, 0, domain.ErrStoreOpen)
+	uc := usecase.NewHabitUseCase(repo)
+	ctrl := NewHabitController(uc)
+	req := test.NewMockRequest().WithQuery("name", "exercise")
+
+	resp := ctrl.GetStreak(req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Status)
+}
+
+func TestHabitController_GetToday_StoreError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("ListHabitsToday").Return([]string(nil), domain.ErrStoreOpen)
+	uc := usecase.NewHabitUseCase(repo)
+	ctrl := NewHabitController(uc)
+	req := test.NewMockRequest()
+
+	resp := ctrl.GetToday(req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Status)
 }

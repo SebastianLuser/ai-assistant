@@ -30,6 +30,7 @@ type SpotifyTrack struct {
 // SpotifyClient is the Spotify API client.
 type SpotifyClient struct {
 	accessToken string
+	baseURL     string
 	httpClient  *http.Client
 }
 
@@ -37,8 +38,16 @@ type SpotifyClient struct {
 func NewSpotifyClient(accessToken string) *SpotifyClient {
 	return &SpotifyClient{
 		accessToken: accessToken,
+		baseURL:     spotifyBaseURL,
 		httpClient:  &http.Client{Timeout: spotifyDefaultTimeout},
 	}
+}
+
+// NewSpotifyClientWithBaseURL creates a Spotify client pointing at a custom base URL (for testing).
+func NewSpotifyClientWithBaseURL(accessToken, baseURL string) *SpotifyClient {
+	c := NewSpotifyClient(accessToken)
+	c.baseURL = baseURL
+	return c
 }
 
 // GetCurrentlyPlaying returns the currently playing track.
@@ -106,7 +115,7 @@ func (c *SpotifyClient) Next() error {
 }
 
 func (c *SpotifyClient) doRequest(method, path string) ([]byte, error) {
-	req, err := http.NewRequest(method, spotifyBaseURL+path, nil)
+	req, err := http.NewRequest(method, c.baseURL+path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("spotify: create request: %w", err)
 	}

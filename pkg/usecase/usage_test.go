@@ -48,6 +48,50 @@ func TestSessionUsage_EstimatedCost(t *testing.T) {
 	assert.InDelta(t, 18.0, cost, 0.01) // $3 input + $15 output
 }
 
+func TestUsageTracker_TotalCostUSD_Empty(t *testing.T) {
+	tracker := NewUsageTracker()
+
+	cost := tracker.TotalCostUSD()
+
+	assert.Equal(t, 0.0, cost)
+}
+
+func TestUsageTracker_TotalCostUSD_MultipleSessions(t *testing.T) {
+	tracker := NewUsageTracker()
+	tracker.Track("s1", 1_000_000, 0)
+	tracker.Track("s2", 0, 1_000_000)
+
+	cost := tracker.TotalCostUSD()
+
+	assert.InDelta(t, 18.0, cost, 0.01) // $3 + $15
+}
+
+func TestUsageTracker_GetAll_Empty(t *testing.T) {
+	tracker := NewUsageTracker()
+
+	all := tracker.GetAll()
+
+	assert.Empty(t, all)
+}
+
+func TestUsageTracker_Track_UpdatesTimestamps(t *testing.T) {
+	tracker := NewUsageTracker()
+
+	tracker.Track("s1", 100, 50)
+	s := tracker.GetSession("s1")
+
+	assert.False(t, s.FirstUsed.IsZero())
+	assert.False(t, s.LastUsed.IsZero())
+}
+
+func TestSessionUsage_EstimatedCost_Zero(t *testing.T) {
+	s := &SessionUsage{}
+
+	cost := s.EstimatedCostUSD()
+
+	assert.Equal(t, 0.0, cost)
+}
+
 func TestSessionUsage_Summary(t *testing.T) {
 	s := &SessionUsage{
 		SessionID:    "test",

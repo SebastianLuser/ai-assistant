@@ -261,6 +261,42 @@ func (m *MockWhatsAppSender) MarkAsRead(messageID string) error {
 
 var _ domain.WhatsAppSender = (*MockWhatsAppSender)(nil)
 
+// MockFinanceService mocks service.FinanceService.
+type MockFinanceService struct {
+	mock.Mock
+}
+
+func (m *MockFinanceService) SaveExpense(expense domain.ParsedExpense) error {
+	args := m.Called(expense)
+	return args.Error(0)
+}
+
+var _ service.FinanceService = (*MockFinanceService)(nil)
+
+// MockTranscriber mocks domain.Transcriber.
+type MockTranscriber struct {
+	mock.Mock
+}
+
+func (m *MockTranscriber) Transcribe(audioData []byte, mimeType string) (string, error) {
+	args := m.Called(audioData, mimeType)
+	return args.String(0), args.Error(1)
+}
+
+var _ domain.Transcriber = (*MockTranscriber)(nil)
+
+// MockMediaChannel implements domain.Channel and domain.MediaDownloader.
+type MockMediaChannel struct {
+	MockChannel
+}
+
+func (m *MockMediaChannel) DownloadMedia(mediaID string) ([]byte, string, error) {
+	args := m.Called(mediaID)
+	return args.Get(0).([]byte), args.String(1), args.Error(2)
+}
+
+var _ domain.MediaDownloader = (*MockMediaChannel)(nil)
+
 // MockChannel mocks domain.Channel for testing the MessageRouter.
 type MockChannel struct {
 	mock.Mock

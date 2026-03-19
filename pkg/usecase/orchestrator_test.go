@@ -222,6 +222,89 @@ func TestAgentOrchestrator_runSubAgent_WithFilteredTools(t *testing.T) {
 	assert.Equal(t, "Done with limited tools", result)
 }
 
+// --- buildOrchestratorTools tests ---
+
+func TestAgentOrchestrator_buildOrchestratorTools_IncludesDelegation(t *testing.T) {
+	reg := NewToolRegistry()
+	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(input map[string]any) (string, error) { return "ok", nil })
+
+	agents := []domain.AgentDefinition{
+		{ID: "helper", Name: "Helper", Description: "Helps"},
+	}
+
+	o := NewAgentOrchestrator(nil, reg, agents)
+	orchTools := o.buildOrchestratorTools()
+
+	defs := orchTools.Definitions()
+
+	names := make(map[string]bool)
+	for _, d := range defs {
+		names[d.Name] = true
+	}
+
+	assert.True(t, names["save_note"])
+	assert.True(t, names["delegate_to_agent"])
+}
+
+func TestAgentOrchestrator_buildOrchestratorTools_CopiesExistingTools(t *testing.T) {
+	reg := NewToolRegistry()
+	reg.Register(domain.ToolDefinition{Name: "tool_a"}, func(input map[string]any) (string, error) { return "a", nil })
+	reg.Register(domain.ToolDefinition{Name: "tool_b"}, func(input map[string]any) (string, error) { return "b", nil })
+
+	o := NewAgentOrchestrator(nil, reg, nil)
+	orchTools := o.buildOrchestratorTools()
+
+	// Should have tool_a, tool_b, and delegate_to_agent
+	assert.Len(t, orchTools.Definitions(), 3)
+
+	resultA, err := orchTools.Execute("tool_a", nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "a", resultA)
+}
+
+// --- Run with delegation tests ---
+
+func TestAgentOrchestrator_Run_WithDelegation(t *testing.T) {
+	// Responses are consumed sequentially:
+	// 1. Orchestrator gets tool_use (delegate_to_agent)
+	// 2. Sub-agent gets text response (sub-agent result)
+	// 3. Orchestrator gets final text response
+	provider := &mockToolUseProvider{
+		responses: []mockToolResponse{
+			{
+				blocks: []domain.ContentBlock{
+					{Type: "tool_use", ID: "t1", Name: "delegate_to_agent", Input: map[string]any{"agent_id": "helper", "task": "do it"}},
+				},
+				stopReason: domain.StopReasonToolUse,
+			},
+			{
+				blocks:     []domain.ContentBlock{{Type: "text", Text: "Sub-agent did it"}},
+				stopReason: domain.StopReasonEndTurn,
+			},
+			{
+				blocks:     []domain.ContentBlock{{Type: "text", Text: "Final answer from orchestrator"}},
+				stopReason: domain.StopReasonEndTurn,
+			},
+		},
+	}
+
+	agents := []domain.AgentDefinition{
+		{
+			ID:           "helper",
+			Name:         "Helper",
+			SystemPrompt: "You help.",
+		},
+	}
+
+	orch := NewAgentOrchestrator(provider, NewToolRegistry(), agents)
+
+	result, err := orch.Run("system", []domain.Message{{Role: "user", Content: "delegate this"}})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Final answer from orchestrator", result)
+	assert.Equal(t, 3, provider.calls)
+}
+
 func TestAgentOrchestrator_Run_SimpleText(t *testing.T) {
 	provider := &mockToolUseProvider{
 		responses: []mockToolResponse{

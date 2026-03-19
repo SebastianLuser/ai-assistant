@@ -28,6 +28,7 @@ type TodoistTask struct {
 // TodoistClient is the Todoist API client.
 type TodoistClient struct {
 	apiToken   string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -35,8 +36,16 @@ type TodoistClient struct {
 func NewTodoistClient(apiToken string) *TodoistClient {
 	return &TodoistClient{
 		apiToken:   apiToken,
+		baseURL:    todoistBaseURL,
 		httpClient: &http.Client{Timeout: todoistDefaultTimeout},
 	}
+}
+
+// NewTodoistClientWithBaseURL creates a Todoist client pointing at a custom base URL (for testing).
+func NewTodoistClientWithBaseURL(apiToken, baseURL string) *TodoistClient {
+	c := NewTodoistClient(apiToken)
+	c.baseURL = baseURL
+	return c
 }
 
 // GetTasks returns all active tasks.
@@ -137,7 +146,7 @@ func (c *TodoistClient) doRequest(method, path string, body any) ([]byte, error)
 		reqBody = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequest(method, todoistBaseURL+path, reqBody)
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("todoist: create request: %w", err)
 	}

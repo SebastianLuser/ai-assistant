@@ -174,6 +174,159 @@ func TestConversationUseCase_Compact_EmitsAfterCompactionHook(t *testing.T) {
 	assert.True(t, hookCalled)
 }
 
+// --- chunkMessages tests ---
+
+func TestChunkMessages_ExactChunks(t *testing.T) {
+	msgs := buildMessages(10)
+
+	chunks := chunkMessages(msgs, 5)
+
+	assert.Len(t, chunks, 2)
+	assert.Len(t, chunks[0], 5)
+	assert.Len(t, chunks[1], 5)
+}
+
+func TestChunkMessages_UnevenChunks(t *testing.T) {
+	msgs := buildMessages(7)
+
+	chunks := chunkMessages(msgs, 3)
+
+	assert.Len(t, chunks, 3)
+	assert.Len(t, chunks[0], 3)
+	assert.Len(t, chunks[1], 3)
+	assert.Len(t, chunks[2], 1)
+}
+
+func TestChunkMessages_SingleChunk(t *testing.T) {
+	msgs := buildMessages(3)
+
+	chunks := chunkMessages(msgs, 10)
+
+	assert.Len(t, chunks, 1)
+	assert.Len(t, chunks[0], 3)
+}
+
+func TestChunkMessages_EmptyMessages(t *testing.T) {
+	chunks := chunkMessages(nil, 5)
+
+	assert.Empty(t, chunks)
+}
+
+// --- compactMultiStage tests ---
+
+func TestConversationUseCase_compactMultiStage_SmallInput_DelegatesToSinglePass(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "single pass summary"})
+	defer srv.Close()
+	hooksRegistry := hooks.NewRegistry()
+	uc := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
+
+	msgs := buildMessages(domain.ChunkSize)
+
+	summary, err := uc.compactMultiStage(msgs)
+
+	require.NoError(t, err)
+	assert.Equal(t, "single pass summary", summary)
+}
+
+func TestConversationUseCase_compactMultiStage_MultiChunk_MergesSummaries(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	// Responses: chunk1 summary, chunk2 summary, merged summary
+	srv, ai := test.NewMockClaudeServer(
+		test.ClaudeResponse{Text: "chunk1 summary"},
+		test.ClaudeResponse{Text: "chunk2 summary"},
+		test.ClaudeResponse{Text: "merged summary"},
+	)
+	defer srv.Close()
+	hooksRegistry := hooks.NewRegistry()
+	uc := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
+
+	msgs := buildMessages(domain.ChunkSize * 2)
+
+	summary, err := uc.compactMultiStage(msgs)
+
+	require.NoError(t, err)
+	assert.Equal(t, "merged summary", summary)
+}
+
+func TestConversationUseCase_compactMultiStage_SingleChunkResult(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	// Only one chunk so only one summary, no merge needed
+	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "only chunk"})
+	defer srv.Close()
+	hooksRegistry := hooks.NewRegistry()
+	uc := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
+
+	msgs := buildMessages(domain.ChunkSize + 1)
+
+	summary, err := uc.compactMultiStage(msgs)
+
+	require.NoError(t, err)
+	assert.Equal(t, "only chunk", summary)
+}
+
+// --- summarizeChunks tests ---
+
+func TestConversationUseCase_summarizeChunks_AIError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	srv, ai := test.NewMockClaudeServerError(500, "server_error", "internal")
+	defer srv.Close()
+	hooksRegistry := hooks.NewRegistry()
+	uc := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
+
+	chunks := [][]domain.ConversationMessage{buildMessages(3)}
+
+	_, err := uc.summarizeChunks(chunks)
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, domain.ErrCompactChunk))
+}
+
+// --- mergeSummaries tests ---
+
+func TestConversationUseCase_mergeSummaries_AIError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	srv, ai := test.NewMockClaudeServerError(500, "server_error", "internal")
+	defer srv.Close()
+	hooksRegistry := hooks.NewRegistry()
+	uc := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
+
+	_, err := uc.mergeSummaries([]string{"summary1", "summary2"})
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, domain.ErrCompactMerge))
+}
+
+// --- Compact edge cases ---
+
+func TestConversationUseCase_Compact_LoadError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("LoadConversation", testSessionID, domain.MaxHistoryMessages).
+		Return([]domain.ConversationMessage(nil), errStoreFailure)
+	uc, cleanup := newTestConversationUseCase(repo, "")
+	defer cleanup()
+
+	err := uc.Compact(testSessionID)
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errStoreFailure))
+}
+
+func TestConversationUseCase_Compact_ReplaceError(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	history := buildMessages(8)
+	repo.On("LoadConversation", testSessionID, domain.MaxHistoryMessages).Return(history, nil)
+	repo.On("ReplaceConversation", testSessionID, mock.Anything).Return(errStoreFailure)
+
+	uc, cleanup := newTestConversationUseCase(repo, "summary")
+	defer cleanup()
+
+	err := uc.Compact(testSessionID)
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errStoreFailure))
+}
+
 func TestFormatMessages_FormatsCorrectly(t *testing.T) {
 	msgs := []domain.ConversationMessage{
 		{Role: "user", Content: "hola"},

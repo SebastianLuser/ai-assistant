@@ -10,6 +10,7 @@ import (
 	"asistente/test"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -263,6 +264,109 @@ func TestNewSessionPruningJob_ZeroPruned(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, result, "pruned 0 stale session(s)")
+}
+
+// --- NewDailyBriefingJob tests ---
+
+func TestNewDailyBriefingJob_Structure(t *testing.T) {
+	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "briefing"})
+	defer srv.Close()
+
+	job := NewDailyBriefingJob(ai, "123", nil, nil, nil, nil)
+
+	assert.Equal(t, domain.JobDailyBriefing, job.ID)
+	assert.Equal(t, domain.DailyBriefingHour, job.Hour)
+	assert.Equal(t, domain.DeliveryModeWhatsApp, job.Delivery.Mode)
+	assert.Equal(t, "123", job.Delivery.To)
+	assert.NotNil(t, job.RunFn)
+}
+
+func TestNewDailyBriefingJob_RunFn_NoClients(t *testing.T) {
+	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "good morning"})
+	defer srv.Close()
+
+	job := NewDailyBriefingJob(ai, "123", nil, nil, nil, nil)
+
+	result, err := job.RunFn()
+
+	require.NoError(t, err)
+	assert.Equal(t, "good morning", result)
+}
+
+func TestNewDailyBriefingJob_RunFn_WithMemoryService(t *testing.T) {
+	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "briefing with expenses"})
+	defer srv.Close()
+
+	repo := new(test.MockMemoryService)
+	expenses := []domain.Expense{
+		{Amount: 1000, Category: "Supermercado"},
+	}
+	repo.On("ListExpenses", mock.Anything, mock.Anything).Return(expenses, nil)
+
+	job := NewDailyBriefingJob(ai, "123", nil, nil, nil, repo)
+
+	result, err := job.RunFn()
+
+	require.NoError(t, err)
+	assert.Equal(t, "briefing with expenses", result)
+	repo.AssertExpectations(t)
+}
+
+// --- NewWeeklyFinanceJob tests ---
+
+func TestNewWeeklyFinanceJob_Structure(t *testing.T) {
+	job := NewWeeklyFinanceJob(nil, "123", nil)
+
+	assert.Equal(t, domain.JobWeeklyFinance, job.ID)
+	assert.Equal(t, domain.WeeklyFinanceHour, job.Hour)
+	assert.NotNil(t, job.Weekday)
+	assert.Equal(t, time.Sunday, *job.Weekday)
+	assert.NotEmpty(t, job.Prompt)
+	assert.Equal(t, domain.DeliveryModeWhatsApp, job.Delivery.Mode)
+}
+
+// --- NewBudgetAlertJob tests ---
+
+func TestNewBudgetAlertJob_Structure(t *testing.T) {
+	job := NewBudgetAlertJob(nil, "123", nil)
+
+	assert.Equal(t, domain.JobBudgetAlert, job.ID)
+	assert.Equal(t, domain.BudgetAlertHour, job.Hour)
+	assert.NotNil(t, job.RunFn)
+	assert.Equal(t, domain.DeliveryModeWhatsApp, job.Delivery.Mode)
+}
+
+func TestNewBudgetAlertJob_RunFn_Success(t *testing.T) {
+	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "budget alert"})
+	defer srv.Close()
+
+	job := NewBudgetAlertJob(ai, "123", nil)
+
+	result, err := job.RunFn()
+
+	require.NoError(t, err)
+	assert.Equal(t, "budget alert", result)
+}
+
+// --- Scheduler Start/Stop tests ---
+
+func TestScheduler_StartStop(t *testing.T) {
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{}, hooksRegistry)
+
+	s.Start()
+	s.Stop()
+	// If we get here without hanging, the test passes
+}
+
+func TestScheduler_StopIdempotent(t *testing.T) {
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{}, hooksRegistry)
+
+	s.Start()
+	s.Stop()
+	// Calling Stop again should not panic due to stopOnce
+	s.Stop()
 }
 
 func TestNewDailyJournalJob_ReturnsStaticMessage(t *testing.T) {

@@ -45,6 +45,7 @@ type GitHubPullRequest struct {
 // GitHubClient is the GitHub API client.
 type GitHubClient struct {
 	token      string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -52,8 +53,16 @@ type GitHubClient struct {
 func NewGitHubClient(token string) *GitHubClient {
 	return &GitHubClient{
 		token:      token,
+		baseURL:    githubBaseURL,
 		httpClient: &http.Client{Timeout: githubDefaultTimeout},
 	}
+}
+
+// NewGitHubClientWithBaseURL creates a GitHub client pointing at a custom base URL (for testing).
+func NewGitHubClientWithBaseURL(token, baseURL string) *GitHubClient {
+	c := NewGitHubClient(token)
+	c.baseURL = baseURL
+	return c
 }
 
 // ListRepos returns the authenticated user's repositories.
@@ -134,7 +143,7 @@ func (c *GitHubClient) doRequest(method, path string, body any) ([]byte, error) 
 		reqBody = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequest(method, githubBaseURL+path, reqBody)
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("github: create request: %w", err)
 	}

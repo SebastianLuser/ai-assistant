@@ -13,6 +13,7 @@ const notionBaseURL = "https://api.notion.com/v1"
 
 type NotionClient struct {
 	apiKey     string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -26,8 +27,16 @@ type NotionPage struct {
 func NewNotionClient(apiKey string) *NotionClient {
 	return &NotionClient{
 		apiKey:     apiKey,
+		baseURL:    notionBaseURL,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+// NewNotionClientWithBaseURL creates a Notion client pointing at a custom base URL (for testing).
+func NewNotionClientWithBaseURL(apiKey, baseURL string) *NotionClient {
+	c := NewNotionClient(apiKey)
+	c.baseURL = baseURL
+	return c
 }
 
 func (c *NotionClient) CreatePage(parentPageID, title, content string) (string, error) {
@@ -150,7 +159,7 @@ func (c *NotionClient) doRequest(method, path string, body any) ([]byte, error) 
 		reqBody = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequest(method, notionBaseURL+path, reqBody)
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("notion: create request: %w", err)
 	}

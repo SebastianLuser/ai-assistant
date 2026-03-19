@@ -70,6 +70,7 @@ type FigmaProjectFile struct {
 // FigmaClient is the Figma REST API client.
 type FigmaClient struct {
 	token      string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -77,8 +78,16 @@ type FigmaClient struct {
 func NewFigmaClient(token string) *FigmaClient {
 	return &FigmaClient{
 		token:      token,
+		baseURL:    figmaBaseURL,
 		httpClient: &http.Client{Timeout: figmaDefaultTimeout},
 	}
+}
+
+// NewFigmaClientWithBaseURL creates a Figma client pointing at a custom base URL (for testing).
+func NewFigmaClientWithBaseURL(token, baseURL string) *FigmaClient {
+	c := NewFigmaClient(token)
+	c.baseURL = baseURL
+	return c
 }
 
 // GetFile returns metadata for a Figma file.
@@ -201,7 +210,7 @@ func (c *FigmaClient) GetComponents(fileKey string) ([]FigmaComponent, error) {
 }
 
 func (c *FigmaClient) doRequest(method, path string) ([]byte, error) {
-	req, err := http.NewRequest(method, figmaBaseURL+path, nil)
+	req, err := http.NewRequest(method, c.baseURL+path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("figma: create request: %w", err)
 	}

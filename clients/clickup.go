@@ -33,6 +33,7 @@ type ClickUpTask struct {
 type ClickUpClient struct {
 	apiToken   string
 	teamID     string
+	baseURL    string
 	httpClient *http.Client
 }
 
@@ -41,8 +42,16 @@ func NewClickUpClient(apiToken, teamID string) *ClickUpClient {
 	return &ClickUpClient{
 		apiToken:   apiToken,
 		teamID:     teamID,
+		baseURL:    clickupBaseURL,
 		httpClient: &http.Client{Timeout: clickupDefaultTimeout},
 	}
+}
+
+// NewClickUpClientWithBaseURL creates a ClickUp client pointing at a custom base URL (for testing).
+func NewClickUpClientWithBaseURL(apiToken, teamID, baseURL string) *ClickUpClient {
+	c := NewClickUpClient(apiToken, teamID)
+	c.baseURL = baseURL
+	return c
 }
 
 // getMyUserID returns the authenticated user's ClickUp ID.
@@ -221,7 +230,7 @@ func (c *ClickUpClient) doRequest(method, path string, body any) ([]byte, error)
 		reqBody = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequest(method, clickupBaseURL+path, reqBody)
+	req, err := http.NewRequest(method, c.baseURL+path, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("clickup: create request: %w", err)
 	}
