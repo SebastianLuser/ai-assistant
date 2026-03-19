@@ -12,8 +12,23 @@ type Habit struct {
 	LoggedAt time.Time `json:"logged_at"`
 }
 
+const (
+	maxHabitNameLen = 200
+)
+
 type HabitLogRequest struct {
 	Name string `json:"name"`
+}
+
+// Validate checks that a habit log request is valid.
+func (r HabitLogRequest) Validate() error {
+	if r.Name == "" {
+		return Wrap(ErrValidation, "name is required")
+	}
+	if len(r.Name) > maxHabitNameLen {
+		return Wrap(ErrValidation, "name exceeds maximum length")
+	}
+	return nil
 }
 
 type HabitLogResponse struct {

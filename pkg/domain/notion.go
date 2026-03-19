@@ -5,6 +5,14 @@ type NotionCreateRequest struct {
 	Content string `json:"content"`
 }
 
+// Validate checks that a Notion page creation request is valid.
+func (r NotionCreateRequest) Validate() error {
+	if r.Title == "" {
+		return Wrap(ErrValidation, "title is required")
+	}
+	return nil
+}
+
 type NotionResponse struct {
 	Success bool   `json:"success"`
 	ID      string `json:"id,omitempty"`

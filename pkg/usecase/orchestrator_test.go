@@ -6,6 +6,7 @@ import (
 	"asistente/pkg/domain"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAgentOrchestrator_BuildOrchestratorPrompt(t *testing.T) {
@@ -97,4 +98,144 @@ func TestDefaultAgents_HasExpectedAgents(t *testing.T) {
 	assert.True(t, ids["study"])
 	assert.True(t, ids["planner"])
 	assert.True(t, ids["assistant"])
+}
+
+// --- agentIDs tests ---
+
+func TestAgentOrchestrator_agentIDs(t *testing.T) {
+	agents := []domain.AgentDefinition{
+		{ID: "finance", Name: "Finance Agent"},
+		{ID: "dev", Name: "Dev Agent"},
+		{ID: "study", Name: "Study Agent"},
+	}
+
+	orch := NewAgentOrchestrator(nil, NewToolRegistry(), agents)
+
+	ids := orch.agentIDs()
+
+	assert.Equal(t, []string{"finance", "dev", "study"}, ids)
+}
+
+func TestAgentOrchestrator_agentIDs_Empty(t *testing.T) {
+	orch := NewAgentOrchestrator(nil, NewToolRegistry(), nil)
+
+	ids := orch.agentIDs()
+
+	assert.Empty(t, ids)
+}
+
+// --- runSubAgent tests ---
+
+func TestAgentOrchestrator_runSubAgent_NotFound(t *testing.T) {
+	provider := &mockToolUseProvider{
+		responses: []mockToolResponse{},
+	}
+	orch := NewAgentOrchestrator(provider, NewToolRegistry(), nil)
+
+	_, err := orch.runSubAgent("nonexistent", "do something")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "agent not found")
+}
+
+func TestAgentOrchestrator_runSubAgent_Success(t *testing.T) {
+	provider := &mockToolUseProvider{
+		responses: []mockToolResponse{
+			{
+				blocks:     []domain.ContentBlock{{Type: "text", Text: "Sub-agent result"}},
+				stopReason: domain.StopReasonEndTurn,
+			},
+		},
+	}
+
+	agents := []domain.AgentDefinition{
+		{
+			ID:           "helper",
+			Name:         "Helper",
+			SystemPrompt: "You are a helper.",
+		},
+	}
+
+	orch := NewAgentOrchestrator(provider, NewToolRegistry(), agents)
+
+	result, err := orch.runSubAgent("helper", "help me")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Sub-agent result", result)
+}
+
+func TestAgentOrchestrator_runSubAgent_AIError_ReturnsErrorMessage(t *testing.T) {
+	provider := &mockToolUseProvider{
+		responses: []mockToolResponse{
+			{
+				blocks:     nil,
+				stopReason: "",
+				err:        assert.AnError,
+			},
+		},
+	}
+
+	agents := []domain.AgentDefinition{
+		{
+			ID:           "failing",
+			Name:         "Failing Agent",
+			SystemPrompt: "You fail.",
+		},
+	}
+
+	orch := NewAgentOrchestrator(provider, NewToolRegistry(), agents)
+
+	result, err := orch.runSubAgent("failing", "do it")
+
+	require.NoError(t, err)
+	assert.Contains(t, result, "Error del agente Failing Agent")
+}
+
+func TestAgentOrchestrator_runSubAgent_WithFilteredTools(t *testing.T) {
+	provider := &mockToolUseProvider{
+		responses: []mockToolResponse{
+			{
+				blocks:     []domain.ContentBlock{{Type: "text", Text: "Done with limited tools"}},
+				stopReason: domain.StopReasonEndTurn,
+			},
+		},
+	}
+
+	tools := NewToolRegistry()
+	tools.Register(domain.ToolDefinition{Name: "search"}, func(input map[string]any) (string, error) { return "ok", nil })
+	tools.Register(domain.ToolDefinition{Name: "delete"}, func(input map[string]any) (string, error) { return "ok", nil })
+
+	agents := []domain.AgentDefinition{
+		{
+			ID:           "limited",
+			Name:         "Limited",
+			SystemPrompt: "Limited agent.",
+			AllowedTools: []string{"search"},
+		},
+	}
+
+	orch := NewAgentOrchestrator(provider, tools, agents)
+
+	result, err := orch.runSubAgent("limited", "search for something")
+
+	require.NoError(t, err)
+	assert.Equal(t, "Done with limited tools", result)
+}
+
+func TestAgentOrchestrator_Run_SimpleText(t *testing.T) {
+	provider := &mockToolUseProvider{
+		responses: []mockToolResponse{
+			{
+				blocks:     []domain.ContentBlock{{Type: "text", Text: "Direct answer"}},
+				stopReason: domain.StopReasonEndTurn,
+			},
+		},
+	}
+
+	orch := NewAgentOrchestrator(provider, NewToolRegistry(), nil)
+
+	result, err := orch.Run("system", []domain.Message{{Role: "user", Content: "hi"}})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Direct answer", result)
 }

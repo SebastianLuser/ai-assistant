@@ -33,10 +33,25 @@ type GitHubPullRequest struct {
 	Draft  bool   `json:"draft"`
 }
 
+const (
+	maxGitHubIssueTitleLen = 500
+)
+
 // GitHubCreateIssueRequest is the payload for creating a GitHub issue.
 type GitHubCreateIssueRequest struct {
 	Title string `json:"title"`
 	Body  string `json:"body"`
+}
+
+// Validate checks that a GitHub issue creation request is valid.
+func (r GitHubCreateIssueRequest) Validate() error {
+	if r.Title == "" {
+		return Wrap(ErrValidation, "title is required")
+	}
+	if len(r.Title) > maxGitHubIssueTitleLen {
+		return Wrap(ErrValidation, "title exceeds maximum length")
+	}
+	return nil
 }
 
 // GitHubRepoListResponse is the response for listing repos.

@@ -8,13 +8,24 @@ type SkillCreateRequest struct {
 	Content     string   `json:"content"`
 }
 
+const (
+	maxSkillNameLen    = 200
+	maxSkillContentLen = 50_000
+)
+
 // Validate checks that a skill creation request is valid.
 func (r SkillCreateRequest) Validate() error {
 	if r.Name == "" {
 		return Wrap(ErrValidation, "name is required")
 	}
+	if len(r.Name) > maxSkillNameLen {
+		return Wrap(ErrValidation, "name exceeds maximum length")
+	}
 	if r.Content == "" {
 		return Wrap(ErrValidation, "content is required")
+	}
+	if len(r.Content) > maxSkillContentLen {
+		return Wrap(ErrValidation, "content exceeds maximum length")
 	}
 	return nil
 }

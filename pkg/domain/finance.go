@@ -28,9 +28,24 @@ type ParsedExpense struct {
 	Date        string  `json:"date"`
 }
 
+const (
+	maxExpenseMessageLen = 5000
+)
+
 type ExpenseRequest struct {
 	Message string `json:"message"`
 	Sender  string `json:"sender"`
+}
+
+// Validate checks that an expense request is valid.
+func (r ExpenseRequest) Validate() error {
+	if r.Message == "" {
+		return Wrap(ErrValidation, "message is required")
+	}
+	if len(r.Message) > maxExpenseMessageLen {
+		return Wrap(ErrValidation, "message exceeds maximum length")
+	}
+	return nil
 }
 
 type ExpenseResponse struct {

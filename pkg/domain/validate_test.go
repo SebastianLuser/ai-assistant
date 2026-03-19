@@ -34,6 +34,11 @@ const (
 	errNoteContentMax     = "validation error: content exceeds maximum length"
 	errTooManyTags        = "validation error: too many tags"
 	errInvalidTag         = "validation error: invalid tag"
+	errTitleRequired      = "validation error: title is required"
+	errTitleMaxLen        = "validation error: title exceeds maximum length"
+	errNameRequired       = "validation error: name is required"
+	errNameMaxLen         = "validation error: name exceeds maximum length"
+	errProjectKeyRequired = "validation error: project_key is required"
 )
 
 func TestObsidianNoteRequest_Validate_Success(t *testing.T) {
@@ -375,4 +380,169 @@ func TestNoteRequest_Validate_NoTags(t *testing.T) {
 	r := NoteRequest{Content: "note"}
 
 	assert.NoError(t, r.Validate())
+}
+
+// --- GitHubCreateIssueRequest ---
+
+func TestGitHubCreateIssueRequest_Validate_Success(t *testing.T) {
+	r := GitHubCreateIssueRequest{Title: "Fix bug", Body: "Details"}
+
+	assert.NoError(t, r.Validate())
+}
+
+func TestGitHubCreateIssueRequest_Validate_EmptyTitle(t *testing.T) {
+	r := GitHubCreateIssueRequest{Title: "", Body: "Details"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errTitleRequired, err.Error())
+}
+
+func TestGitHubCreateIssueRequest_Validate_TitleTooLong(t *testing.T) {
+	r := GitHubCreateIssueRequest{Title: strings.Repeat("a", 501), Body: "Details"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errTitleMaxLen, err.Error())
+}
+
+// --- JiraCreateIssueRequest ---
+
+func TestJiraCreateIssueRequest_Validate_Success(t *testing.T) {
+	r := JiraCreateIssueRequest{Summary: "Fix bug", ProjectKey: "PROJ"}
+
+	assert.NoError(t, r.Validate())
+}
+
+func TestJiraCreateIssueRequest_Validate_EmptySummary(t *testing.T) {
+	r := JiraCreateIssueRequest{Summary: "", ProjectKey: "PROJ"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errSummaryRequired, err.Error())
+}
+
+func TestJiraCreateIssueRequest_Validate_EmptyProjectKey(t *testing.T) {
+	r := JiraCreateIssueRequest{Summary: "Fix bug", ProjectKey: ""}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errProjectKeyRequired, err.Error())
+}
+
+// --- ExpenseRequest ---
+
+func TestExpenseRequest_Validate_Success(t *testing.T) {
+	r := ExpenseRequest{Message: "Gaste 500 en super", Sender: "Sebas"}
+
+	assert.NoError(t, r.Validate())
+}
+
+func TestExpenseRequest_Validate_EmptyMessage(t *testing.T) {
+	r := ExpenseRequest{Message: "", Sender: "Sebas"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errMessageRequired, err.Error())
+}
+
+func TestExpenseRequest_Validate_MessageTooLong(t *testing.T) {
+	r := ExpenseRequest{Message: strings.Repeat("a", 5001), Sender: "Sebas"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errMessageMaxLen, err.Error())
+}
+
+// --- HabitLogRequest ---
+
+func TestHabitLogRequest_Validate_Success(t *testing.T) {
+	r := HabitLogRequest{Name: "exercise"}
+
+	assert.NoError(t, r.Validate())
+}
+
+func TestHabitLogRequest_Validate_EmptyName(t *testing.T) {
+	r := HabitLogRequest{Name: ""}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errNameRequired, err.Error())
+}
+
+func TestHabitLogRequest_Validate_NameTooLong(t *testing.T) {
+	r := HabitLogRequest{Name: strings.Repeat("a", 201)}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errNameMaxLen, err.Error())
+}
+
+// --- NotionCreateRequest ---
+
+func TestNotionCreateRequest_Validate_Success(t *testing.T) {
+	r := NotionCreateRequest{Title: "My Page", Content: "Some content"}
+
+	assert.NoError(t, r.Validate())
+}
+
+func TestNotionCreateRequest_Validate_EmptyTitle(t *testing.T) {
+	r := NotionCreateRequest{Title: "", Content: "Some content"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errTitleRequired, err.Error())
+}
+
+// --- SkillCreateRequest (max length checks) ---
+
+func TestSkillCreateRequest_Validate_Success(t *testing.T) {
+	r := SkillCreateRequest{Name: "greeting", Content: "Hello!"}
+
+	assert.NoError(t, r.Validate())
+}
+
+func TestSkillCreateRequest_Validate_EmptyName(t *testing.T) {
+	r := SkillCreateRequest{Name: "", Content: "Hello!"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errNameRequired, err.Error())
+}
+
+func TestSkillCreateRequest_Validate_NameTooLong(t *testing.T) {
+	r := SkillCreateRequest{Name: strings.Repeat("a", 201), Content: "Hello!"}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errNameMaxLen, err.Error())
+}
+
+func TestSkillCreateRequest_Validate_EmptyContent(t *testing.T) {
+	r := SkillCreateRequest{Name: "greeting", Content: ""}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errContentRequired, err.Error())
+}
+
+func TestSkillCreateRequest_Validate_ContentTooLong(t *testing.T) {
+	r := SkillCreateRequest{Name: "greeting", Content: strings.Repeat("a", 50_001)}
+
+	err := r.Validate()
+
+	assert.True(t, stderrors.Is(err, ErrValidation))
+	assert.Equal(t, errContentMaxLen, err.Error())
 }

@@ -1,12 +1,16 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"asistente/internal/hooks"
 	"asistente/pkg/domain"
+	"asistente/test"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -115,4 +119,160 @@ func TestJob_Deliver_DefaultMode_NoError(t *testing.T) {
 	err := job.Deliver("test result")
 
 	assert.NoError(t, err)
+}
+
+// --- Scheduler tests ---
+
+func TestScheduler_TriggerJob_Success(t *testing.T) {
+	job := domain.Job{
+		ID:       "trigger-test",
+		Delivery: domain.DeliveryConfig{Mode: domain.DeliveryModeLog},
+		RunFn:    func() (string, error) { return "triggered", nil },
+	}
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{job}, hooksRegistry)
+
+	result, err := s.TriggerJob("trigger-test")
+
+	require.NoError(t, err)
+	assert.Equal(t, "triggered", result)
+}
+
+func TestScheduler_TriggerJob_NotFound(t *testing.T) {
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{}, hooksRegistry)
+
+	_, err := s.TriggerJob("nonexistent")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "job not found")
+}
+
+func TestScheduler_TriggerJob_ExecuteError(t *testing.T) {
+	job := domain.Job{
+		ID:       "fail-job",
+		Delivery: domain.DeliveryConfig{Mode: domain.DeliveryModeLog},
+		RunFn:    func() (string, error) { return "", assert.AnError },
+	}
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{job}, hooksRegistry)
+
+	_, err := s.TriggerJob("fail-job")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, assert.AnError)
+}
+
+func TestScheduler_TriggerJob_UpdatesLastRun(t *testing.T) {
+	job := domain.Job{
+		ID:       "time-job",
+		Delivery: domain.DeliveryConfig{Mode: domain.DeliveryModeLog},
+		RunFn:    func() (string, error) { return "ok", nil },
+	}
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{job}, hooksRegistry)
+
+	assert.True(t, s.jobs[0].LastRun.IsZero())
+
+	_, err := s.TriggerJob("time-job")
+	require.NoError(t, err)
+
+	assert.False(t, s.jobs[0].LastRun.IsZero())
+}
+
+func TestScheduler_TriggerJob_EmitsHook(t *testing.T) {
+	job := domain.Job{
+		ID:       "hook-job",
+		Delivery: domain.DeliveryConfig{Mode: domain.DeliveryModeLog},
+		RunFn:    func() (string, error) { return "result", nil },
+	}
+	hooksRegistry := hooks.NewRegistry()
+	hookCalled := false
+	hooksRegistry.Register(hooks.CronJobCompleted, func(ctx context.Context, event hooks.Event) error {
+		hookCalled = true
+		return nil
+	})
+	s := NewScheduler([]domain.Job{job}, hooksRegistry)
+
+	_, _ = s.TriggerJob("hook-job")
+
+	assert.True(t, hookCalled)
+}
+
+func TestScheduler_ListJobs_ReturnsAllIDs(t *testing.T) {
+	jobs := []domain.Job{
+		{ID: "job-a"},
+		{ID: "job-b"},
+		{ID: "job-c"},
+	}
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler(jobs, hooksRegistry)
+
+	ids := s.ListJobs()
+
+	assert.Equal(t, []string{"job-a", "job-b", "job-c"}, ids)
+}
+
+func TestScheduler_ListJobs_Empty(t *testing.T) {
+	hooksRegistry := hooks.NewRegistry()
+	s := NewScheduler([]domain.Job{}, hooksRegistry)
+
+	ids := s.ListJobs()
+
+	assert.Empty(t, ids)
+}
+
+// --- NewSessionPruningJob tests ---
+
+func TestNewSessionPruningJob_Success(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("PruneSessions", domain.SessionTTLDays).Return(int64(5), nil)
+
+	job := NewSessionPruningJob(repo)
+
+	assert.Equal(t, domain.JobSessionPruning, job.ID)
+	assert.Equal(t, domain.SessionPruningHour, job.Hour)
+	assert.Equal(t, domain.DeliveryModeLog, job.Delivery.Mode)
+
+	result, err := job.RunFn()
+
+	require.NoError(t, err)
+	assert.Contains(t, result, "pruned 5 stale session(s)")
+	repo.AssertExpectations(t)
+}
+
+func TestNewSessionPruningJob_Error(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("PruneSessions", domain.SessionTTLDays).Return(int64(0), assert.AnError)
+
+	job := NewSessionPruningJob(repo)
+
+	_, err := job.RunFn()
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, assert.AnError)
+}
+
+func TestNewSessionPruningJob_ZeroPruned(t *testing.T) {
+	repo := new(test.MockMemoryService)
+	repo.On("PruneSessions", domain.SessionTTLDays).Return(int64(0), nil)
+
+	job := NewSessionPruningJob(repo)
+
+	result, err := job.RunFn()
+
+	require.NoError(t, err)
+	assert.Contains(t, result, "pruned 0 stale session(s)")
+}
+
+func TestNewDailyJournalJob_ReturnsStaticMessage(t *testing.T) {
+	job := NewDailyJournalJob(nil, "123", nil)
+
+	assert.Equal(t, domain.JobDailyJournal, job.ID)
+	assert.Equal(t, domain.DailyJournalHour, job.Hour)
+
+	result, err := job.RunFn()
+
+	require.NoError(t, err)
+	assert.Contains(t, result, "Contame")
 }

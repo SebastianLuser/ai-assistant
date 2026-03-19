@@ -23,6 +23,17 @@ type JiraCreateIssueRequest struct {
 	IssueType   string `json:"issue_type"`
 }
 
+// Validate checks that a Jira issue creation request is valid.
+func (r JiraCreateIssueRequest) Validate() error {
+	if r.Summary == "" {
+		return Wrap(ErrValidation, "summary is required")
+	}
+	if r.ProjectKey == "" {
+		return Wrap(ErrValidation, "project_key is required")
+	}
+	return nil
+}
+
 // JiraIssueListResponse is the response for listing issues.
 type JiraIssueListResponse struct {
 	Success bool        `json:"success"`
