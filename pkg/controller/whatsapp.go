@@ -99,7 +99,7 @@ func (c *WhatsAppController) HandleWebhook(req web.Request) web.Response {
 
 	total := len(textMsgs) + len(audioMsgs) + len(imgMsgs)
 	if total > 0 {
-		log.Printf("whatsapp: webhook received %d text + %d audio message(s)", len(textMsgs), len(audioMsgs))
+		log.Printf("whatsapp: webhook received %d text + %d audio + %d image message(s)", len(textMsgs), len(audioMsgs), len(imgMsgs))
 	}
 
 	return web.NewJSONResponse(http.StatusOK, map[string]string{"status": "ok"})

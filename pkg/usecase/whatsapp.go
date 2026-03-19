@@ -25,6 +25,7 @@ type MessageRouter struct {
 	transcriber  domain.Transcriber
 	skills       skills.SkillProvider
 	hooks        *hooks.Registry
+	usage        *UsageTracker
 	allowedFrom  string
 
 	pairingMu     sync.RWMutex
@@ -40,6 +41,7 @@ func NewMessageRouter(
 	transcriber domain.Transcriber,
 	skillsProvider skills.SkillProvider,
 	hooksRegistry *hooks.Registry,
+	usageTracker *UsageTracker,
 	allowedFrom string,
 ) *MessageRouter {
 	code := generatePairingCode()
@@ -51,6 +53,7 @@ func NewMessageRouter(
 		conversation:  conversation,
 		ai:            ai,
 		orchestrator:  orchestrator,
+		usage:         usageTracker,
 		agent:         agent,
 		transcriber:   transcriber,
 		skills:        skillsProvider,
@@ -233,6 +236,13 @@ func (r *MessageRouter) handleMessage(from, text, channelName string) (string, e
 	}
 
 	_ = r.conversation.Ingest(sessionID, domain.RoleAssistant, response)
+
+	// Track estimated token usage (rough: 4 chars ≈ 1 token).
+	if r.usage != nil {
+		inputToks := len(systemPrompt)/4 + len(text)/4
+		outputToks := len(response) / 4
+		r.usage.Track(sessionID, inputToks, outputToks)
+	}
 
 	return response, nil
 }

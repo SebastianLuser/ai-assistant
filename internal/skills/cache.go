@@ -118,5 +118,6 @@ type SkillWriter interface {
 var (
 	_ SkillProvider = (*Loader)(nil)
 	_ SkillProvider = (*CachedLoader)(nil)
+	_ SkillWriter   = (*CachedLoader)(nil)
 )
 

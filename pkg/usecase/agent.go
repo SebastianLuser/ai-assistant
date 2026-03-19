@@ -71,24 +71,20 @@ func (a *AgentUseCase) Run(system string, messages []domain.Message) (string, er
 		// Execute each tool and collect results.
 		var resultBlocks []domain.ContentBlock
 		for _, tc := range toolCalls {
-			log.Printf("agent: executing tool %s (id=%s)", tc.Name, tc.ID)
+			log.Printf("agent: turn=%d executing tool %s (id=%s)", turn, tc.Name, tc.ID)
 
 			result, err := a.tools.Execute(tc.Name, tc.Input)
-			isError := false
 			if err != nil {
 				log.Printf("agent: tool %s failed: %v", tc.Name, err)
 				result = err.Error()
-				isError = true
 			}
 
+			// Claude API format: tool_result uses ID (mapped to tool_use_id)
+			// and Text (mapped to content) by domainToClaudeMessages.
 			resultBlocks = append(resultBlocks, domain.ContentBlock{
 				Type: "tool_result",
 				ID:   tc.ID,
 				Text: result,
-				Name: tc.Name,
-				Input: map[string]any{
-					"is_error": isError,
-				},
 			})
 		}
 

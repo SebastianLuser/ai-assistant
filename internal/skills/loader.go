@@ -125,7 +125,11 @@ func (l *Loader) Save(skill Skill) error {
 		return fmt.Errorf("skills: name is required")
 	}
 
-	filename := slugify(skill.Name) + ".md"
+	slug := slugify(skill.Name)
+	if slug == "" {
+		return fmt.Errorf("skills: name produces empty slug: %s", skill.Name)
+	}
+	filename := slug + ".md"
 	path := filepath.Join(l.dir, filename)
 
 	enabled := skill.IsEnabled()

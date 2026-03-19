@@ -17,11 +17,12 @@ import (
 const schedulerTickInterval = 1 * time.Minute
 
 type Scheduler struct {
-	jobs   []domain.Job
-	hooks  *hooks.Registry
-	mu     sync.Mutex
-	stopCh chan struct{}
-	done   chan struct{}
+	jobs     []domain.Job
+	hooks    *hooks.Registry
+	mu       sync.Mutex
+	stopCh   chan struct{}
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
 func NewScheduler(jobs []domain.Job, hooksRegistry *hooks.Registry) *Scheduler {
@@ -100,11 +101,9 @@ func (s *Scheduler) ListJobs() []string {
 }
 
 func (s *Scheduler) Stop() {
-	select {
-	case <-s.stopCh:
-	default:
+	s.stopOnce.Do(func() {
 		close(s.stopCh)
-	}
+	})
 	<-s.done
 }
 

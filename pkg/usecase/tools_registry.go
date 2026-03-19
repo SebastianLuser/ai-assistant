@@ -52,8 +52,8 @@ func BuildToolRegistry(
 	githubClient *clients.GitHubClient,
 	jiraClient *clients.JiraClient,
 	spotifyClient *clients.SpotifyClient,
-	notionClient *clients.NotionClient,
-	obsidianClient *clients.ObsidianVault,
+	_ *clients.NotionClient,
+	_ *clients.ObsidianVault,
 	skillWriter skills.SkillWriter,
 	reminderMgr *ReminderManager,
 ) *ToolRegistry {
@@ -175,8 +175,14 @@ func BuildToolRegistry(
 				"required": []string{"summary", "start", "end"},
 			},
 		}, func(input map[string]any) (string, error) {
-			start, _ := time.Parse(time.RFC3339, inputString(input, "start"))
-			end, _ := time.Parse(time.RFC3339, inputString(input, "end"))
+			start, err := time.Parse(time.RFC3339, inputString(input, "start"))
+			if err != nil {
+				return "", fmt.Errorf("invalid start date: %w", err)
+			}
+			end, err := time.Parse(time.RFC3339, inputString(input, "end"))
+			if err != nil {
+				return "", fmt.Errorf("invalid end date: %w", err)
+			}
 			event, err := calendarClient.CreateEvent(inputString(input, "summary"), start, end)
 			if err != nil {
 				return "", err

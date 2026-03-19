@@ -133,7 +133,7 @@ func NewControllers(
 			transcriber = cl.Transcriber
 		}
 
-		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, orchestrator, transcriber, skillsLoader, hooksRegistry, cfg.WhatsAppTo)
+		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, orchestrator, transcriber, skillsLoader, hooksRegistry, usageTracker, cfg.WhatsAppTo)
 	}
 
 	if router != nil {
