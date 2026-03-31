@@ -2,12 +2,9 @@ services:
   asistente:
     build:
       context: .
-      network: host
     restart: always
     ports:
       - "8081:8080"
-    env_file:
-      - .env
     volumes:
       - ./credentials.json:/app/credentials.json:ro
       - sqlite_data:/app/data
