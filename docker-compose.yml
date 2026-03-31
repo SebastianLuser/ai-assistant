@@ -1,6 +1,8 @@
 services:
   asistente:
-    build: .
+    build:
+      context: .
+      network: host
     restart: always
     ports:
       - "8080:8080"
@@ -10,6 +12,5 @@ services:
       - ./credentials.json:/app/credentials.json:ro
       - sqlite_data:/app/data
       - ./skills:/app/skills:ro
-
 volumes:
   sqlite_data:
