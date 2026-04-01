@@ -43,16 +43,11 @@ Esperá 2-3 minutos. Accedé a `http://TU_IP:8000` y creá tu cuenta admin.
 asistente.tudominio.com  →  A  →  TU_IP
 ```
 
-### Opción B: DuckDNS (gratis)
-1. Ir a [duckdns.org](https://www.duckdns.org)
-2. Crear subdominio → apuntarlo a tu IP
-
----
 
 ## 4. Configurar proyecto en Coolify
 
 1. **Projects** → **New** → **New Resource** → **Public Repository**
-2. URL: `https://github.com/TU_USUARIO/ai-assistant`
+2. URL: `https://github.com/TU_USUARIO/jarvis`
 3. Branch: `main`
 4. **Build Pack**: Docker Compose
 
