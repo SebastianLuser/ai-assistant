@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"asistente/web"
+	"jarvis/web"
 )
 
 var (

@@ -1,4 +1,4 @@
-# Asistente Personal
+# Jarvis
 
 Microservicio Go que funciona como backend de un asistente personal accesible por WhatsApp. Parsea gastos, guarda notas con busqueda semantica, mantiene memoria de conversaciones, y ejecuta acciones proactivas via cron jobs.
 
@@ -28,23 +28,22 @@ go run ./cmd
 
 | Componente | Tecnologia |
 |---|---|
-| Language | Go 1.24+ |
+| Language | Go 1.25+ |
 | Framework | Gin (via abstraccion en `web/`) |
-| Database | SQLite (WAL) o PostgreSQL |
+| Database | PostgreSQL |
 | AI | Claude API (Anthropic) o OpenAI |
 | Deploy | Docker multi-stage |
-| Orchestrator | n8n (self-hosted) |
 
 ## Architecture
 
 ```
-cmd/         ← Entry point (main 3 lineas) + wiring (App, Clients, Controllers structs)
-clients/     ← External API clients (13 integraciones)
-pkg/domain/  ← Models, types, errors, validations
-pkg/controller/ ← HTTP handlers
-pkg/usecase/ ← Business logic
-pkg/service/ ← Data access (SQLite, Postgres, Sheets, embeddings)
-internal/    ← Hooks, skills, middleware
+cmd/         <- Entry point (main 3 lineas) + wiring (App, Clients, Controllers structs)
+clients/     <- External API clients (13 integraciones)
+pkg/domain/  <- Models, types, errors, validations
+pkg/controller/ <- HTTP handlers
+pkg/usecase/ <- Business logic
+pkg/service/ <- Data access (Postgres, Sheets, embeddings)
+internal/    <- Hooks, skills, middleware
 ```
 
 Detalle completo en [CLAUDE.md](CLAUDE.md).
@@ -52,11 +51,11 @@ Detalle completo en [CLAUDE.md](CLAUDE.md).
 ## Development
 
 ```bash
-make build        # CGO_ENABLED=1 go build -o asistente ./cmd
+make build        # CGO_ENABLED=0 go build -o jarvis ./cmd
 make test         # go test -race ./...
 make test-cover   # test + coverage report
 make vet          # go vet ./...
-make docker       # docker compose up -d --build asistente
+make docker       # docker compose up -d --build jarvis
 ```
 
 ## Testing
@@ -80,7 +79,7 @@ Ver `.env.example` para la lista completa con defaults. Las integraciones son op
 ## Deploy
 
 ```bash
-make docker-all   # Levanta asistente + n8n + dependencias
+make docker-all   # Levanta jarvis + postgres + dependencias
 ```
 
 ## License

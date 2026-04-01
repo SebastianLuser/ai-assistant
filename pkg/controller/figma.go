@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"asistente/clients"
-	"asistente/pkg/domain"
-	"asistente/web"
+	"jarvis/clients"
+	"jarvis/pkg/domain"
+	"jarvis/web"
 )
 
 // FigmaController handles Figma API endpoints.

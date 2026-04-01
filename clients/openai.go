@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 const (

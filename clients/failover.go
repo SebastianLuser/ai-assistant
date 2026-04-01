@@ -3,7 +3,7 @@ package clients
 import (
 	"log"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 // FailoverProvider wraps a primary and fallback AIProvider.

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 //go:embed migrations/postgres/*.up.sql

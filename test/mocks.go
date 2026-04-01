@@ -11,10 +11,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	"asistente/clients"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
-	"asistente/web"
+	"jarvis/clients"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
+	"jarvis/web"
 
 	"github.com/stretchr/testify/mock"
 )

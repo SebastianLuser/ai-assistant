@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 // AgentOrchestrator manages multiple specialized sub-agents.

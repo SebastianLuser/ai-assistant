@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"asistente/web"
+	"jarvis/web"
 )
 
 // WebhookAuth validates the X-Webhook-Secret header against the expected secret.

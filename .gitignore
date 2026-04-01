@@ -14,7 +14,7 @@ data/
 
 # Build
 *.exe
-asistente
+jarvis
 
 # Deploy
 certs/

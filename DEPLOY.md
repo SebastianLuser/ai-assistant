@@ -17,11 +17,9 @@
    - **Image**: Ubuntu 24.04
    - **Type**: CX22 (2 vCPU, 4GB RAM, 40GB SSD) — **~€4.5/mes**
    - **SSH Key**: agregar tu clave pública
-   - **Name**: `asistente`
+   - **Name**: `jarvis`
 3. Click **Create & Buy**
 4. Anotar la IP pública
-
-> Tu stack (1 binario Go + SQLite) usa ~200MB RAM. CX22 sobra.
 
 ---
 
@@ -40,14 +38,14 @@ Esperá 2-3 minutos. Accedé a `http://TU_IP:8000` y creá tu cuenta admin.
 
 ### Opción A: Dominio propio
 ```
-asistente.tudominio.com  →  A  →  TU_IP
+jarvis.tudominio.com  →  A  →  TU_IP
 ```
 
 
 ## 4. Configurar proyecto en Coolify
 
 1. **Projects** → **New** → **New Resource** → **Public Repository**
-2. URL: `https://github.com/TU_USUARIO/jarvis`
+2. URL: `https://github.com/Pineapple-Pixels/Jarvis`
 3. Branch: `main`
 4. **Build Pack**: Docker Compose
 
@@ -63,6 +61,7 @@ WHATSAPP_ACCESS_TOKEN=tu-token
 WHATSAPP_TO_NUMBER=5491112345678
 WHATSAPP_VERIFY_TOKEN=un-token-random
 WHATSAPP_APP_SECRET=tu-app-secret-de-meta
+POSTGRES_DSN=postgres://jarvis:jarvis@postgres:5432/jarvis?sslmode=disable
 
 # Opcionales
 OPENAI_API_KEY=sk-...
@@ -88,7 +87,7 @@ scp credentials.json root@TU_IP:/opt/coolify/credentials.json
 ## 5. SSL (automático)
 
 1. En Coolify → configuración del recurso → **Domains**
-2. Agregar: `asistente.tudominio.com`
+2. Agregar: `jarvis.tudominio.com`
 3. Coolify genera certificado Let's Encrypt automáticamente
 
 ---
@@ -177,9 +176,8 @@ Internet
 Coolify (reverse proxy + SSL)
   │
   ▼
-Docker: asistente (Go + SQLite)
+Docker: jarvis (Go) + postgres
   ├── Port 8080
-  ├── /app/data/asistente.db  (volumen persistente)
   ├── /app/skills/             (skills hot-reload)
   └── /app/credentials.json    (Google service account)
 ```
@@ -202,10 +200,7 @@ Todos los jobs se pueden disparar manualmente: `POST /api/triggers/job/:id`
 ```bash
 # Ver logs
 ssh root@TU_IP
-docker logs -f $(docker ps -q --filter name=asistente)
-
-# Backup SQLite
-docker cp $(docker ps -q --filter name=asistente):/app/data/asistente.db ./backup.db
+docker logs -f $(docker ps -q --filter name=jarvis)
 
 # Reiniciar
 # → Desde la UI de Coolify: botón Restart
@@ -221,4 +216,4 @@ docker cp $(docker ps -q --filter name=asistente):/app/data/asistente.db ./backu
 
 ---
 
-*Última actualización: 18 de marzo de 2026*
+*Última actualización: 31 de marzo de 2026*

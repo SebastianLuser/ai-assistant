@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 
 	"github.com/stretchr/testify/assert"
 )

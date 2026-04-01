@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
-	"asistente/pkg/usecase"
-	"asistente/web"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
+	"jarvis/pkg/usecase"
+	"jarvis/web"
 )
 
 type MemoryController struct {

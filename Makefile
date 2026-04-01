@@ -4,7 +4,7 @@ run:
 	go run ./cmd
 
 build:
-	CGO_ENABLED=0 go build -o asistente ./cmd
+	CGO_ENABLED=0 go build -o jarvis ./cmd
 
 test:
 	go test -race ./...
@@ -26,4 +26,4 @@ docker-down:
 	docker compose down
 
 clean:
-	rm -f asistente cmd.exe coverage.out
+	rm -f jarvis cmd.exe coverage.out

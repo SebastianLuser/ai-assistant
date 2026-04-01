@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"asistente/internal/skills"
-	"asistente/test"
+	"jarvis/internal/skills"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 )

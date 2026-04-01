@@ -3,7 +3,7 @@ package service
 import (
 	"encoding/json"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 type AIEmbedder struct {

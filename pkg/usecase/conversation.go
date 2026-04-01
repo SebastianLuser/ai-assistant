@@ -6,9 +6,9 @@ import (
 	"log"
 	"strings"
 
-	"asistente/internal/hooks"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/internal/hooks"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 const chunkSummaryPrompt = `Resumi este fragmento de conversacion en 2-3 oraciones.

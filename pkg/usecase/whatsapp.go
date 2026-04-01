@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"asistente/internal/hooks"
-	"asistente/internal/skills"
-	"asistente/pkg/domain"
+	"jarvis/internal/hooks"
+	"jarvis/internal/skills"
+	"jarvis/pkg/domain"
 )
 
 // MessageRouter handles incoming messages from any channel (WhatsApp, Telegram, CLI, etc).

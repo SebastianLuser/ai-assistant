@@ -3,8 +3,8 @@ package usecase
 import (
 	"fmt"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 type LinkUseCase struct {

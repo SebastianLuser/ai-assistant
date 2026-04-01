@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	"asistente/pkg/domain"
-	"asistente/test"
+	"jarvis/pkg/domain"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 )

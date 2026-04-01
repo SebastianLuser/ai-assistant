@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 // ToolHandler executes a tool and returns a text result.

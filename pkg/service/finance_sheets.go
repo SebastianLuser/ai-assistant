@@ -1,8 +1,8 @@
 package service
 
 import (
-	"asistente/clients"
-	"asistente/pkg/domain"
+	"jarvis/clients"
+	"jarvis/pkg/domain"
 )
 
 type SheetsFinanceService struct {

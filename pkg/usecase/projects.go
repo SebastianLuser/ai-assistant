@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 const projectStatusSystemPrompt = `Sos un asistente de gestión de proyectos. Hablas en español rioplatense.

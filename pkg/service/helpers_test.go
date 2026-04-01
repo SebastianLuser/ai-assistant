@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 
 	"github.com/stretchr/testify/assert"
 )

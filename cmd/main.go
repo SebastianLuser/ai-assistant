@@ -1,6 +1,6 @@
 package main
 
-import "asistente/config"
+import "jarvis/config"
 
 func main() {
 	app := NewApp(config.Load())

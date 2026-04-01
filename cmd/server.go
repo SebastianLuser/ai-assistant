@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"asistente/boot"
-	"asistente/config"
-	"asistente/internal/hooks"
-	"asistente/internal/skills"
-	"asistente/pkg/service"
-	"asistente/pkg/usecase"
+	"jarvis/boot"
+	"jarvis/config"
+	"jarvis/internal/hooks"
+	"jarvis/internal/skills"
+	"jarvis/pkg/service"
+	"jarvis/pkg/usecase"
 )
 
 type App struct {

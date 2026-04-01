@@ -5,9 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/usecase"
-	"asistente/web"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/usecase"
+	"jarvis/web"
 )
 
 // TelegramController handles Telegram Bot webhook endpoints.

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"asistente/config"
-	"asistente/internal/hooks"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
-	"asistente/pkg/usecase"
+	"jarvis/config"
+	"jarvis/internal/hooks"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
+	"jarvis/pkg/usecase"
 )
 
 func NewScheduler(cl Clients, cfg config.Config, memorySvc service.MemoryService, hooksRegistry *hooks.Registry) *usecase.Scheduler {

@@ -3,9 +3,9 @@ package controller
 import (
 	"net/http"
 
-	"asistente/clients"
-	"asistente/pkg/domain"
-	"asistente/web"
+	"jarvis/clients"
+	"jarvis/pkg/domain"
+	"jarvis/web"
 )
 
 type CalendarController struct {

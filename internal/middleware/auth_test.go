@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"asistente/test"
-	"asistente/web"
+	"jarvis/test"
+	"jarvis/web"
 
 	"github.com/stretchr/testify/assert"
 )

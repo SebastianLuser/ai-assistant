@@ -3,10 +3,10 @@ package main
 import (
 	"log"
 
-	"asistente/clients"
-	"asistente/config"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/clients"
+	"jarvis/config"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 func NewMemoryService(cfg config.Config) service.MemoryService {

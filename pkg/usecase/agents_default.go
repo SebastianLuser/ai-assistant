@@ -1,6 +1,6 @@
 package usecase
 
-import "asistente/pkg/domain"
+import "jarvis/pkg/domain"
 
 // DefaultAgents returns the built-in agent definitions for the personal assistant.
 func DefaultAgents() []domain.AgentDefinition {

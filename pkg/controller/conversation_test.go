@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"testing"
 
-	"asistente/internal/hooks"
-	"asistente/internal/skills"
-	"asistente/pkg/domain"
-	"asistente/pkg/usecase"
-	"asistente/test"
+	"jarvis/internal/hooks"
+	"jarvis/internal/skills"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/usecase"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

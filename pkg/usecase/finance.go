@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 const expenseSystemPrompt = `Sos un parser de gastos en español argentino.

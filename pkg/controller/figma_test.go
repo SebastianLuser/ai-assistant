@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"asistente/clients"
-	"asistente/test"
+	"jarvis/clients"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 )

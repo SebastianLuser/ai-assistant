@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"asistente/clients"
-	"asistente/internal/hooks"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/clients"
+	"jarvis/internal/hooks"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 const schedulerTickInterval = 1 * time.Minute

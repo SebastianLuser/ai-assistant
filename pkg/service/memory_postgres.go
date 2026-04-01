@@ -8,9 +8,9 @@ import (
 	"sort"
 	"time"
 
-	appdb "asistente/db"
-	"asistente/pkg/domain"
-	"asistente/pkg/service/sqldata"
+	appdb "jarvis/db"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service/sqldata"
 
 	_ "github.com/lib/pq"
 )

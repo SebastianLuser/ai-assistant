@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"asistente/clients"
-	"asistente/pkg/domain"
-	"asistente/web"
+	"jarvis/clients"
+	"jarvis/pkg/domain"
+	"jarvis/web"
 )
 
 const defaultMaxResults = 10

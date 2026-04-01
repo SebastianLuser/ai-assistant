@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"asistente/pkg/domain"
-	"asistente/test"
+	"jarvis/pkg/domain"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

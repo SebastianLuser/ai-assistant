@@ -3,35 +3,8 @@
 ## Requisitos
 
 - **Go 1.24+**
-- **CGO habilitado** (necesario para SQLite/go-sqlite3)
-- **Linux, macOS, o WSL2** (Windows nativo bloquea ejecutables en %TEMP% por Application Control)
 
-### Verificar CGO
-
-```bash
-go env CGO_ENABLED
-# Debe devolver: 1
-```
-
-Si devuelve `0`:
-
-```bash
-# Linux/macOS
-export CGO_ENABLED=1
-
-# WSL2 desde Windows
-wsl -d Ubuntu
-cd /mnt/c/Users/Educabot/Desktop/Personal/asistente
-CGO_ENABLED=1 go test ./...
-```
-
-En Docker (la forma mas segura):
-
-```bash
-docker run --rm -v $(pwd):/app -w /app golang:1.24 go test ./...
-```
-
-## Correr tests
+### Correr tests
 
 ```bash
 # Todos
@@ -56,6 +29,12 @@ go test -v ./clients/...
 go test -v ./internal/hooks/...
 go test -v ./internal/skills/...
 go test -v ./internal/middleware/...
+```
+
+En Docker:
+
+```bash
+docker run --rm -v $(pwd):/app -w /app golang:1.25 go test ./...
 ```
 
 ## Estructura de tests
@@ -90,7 +69,6 @@ pkg/usecase/
 └── projects_test.go          ← GetStatus (success, FTS error, no tags)
 
 pkg/service/
-├── memory_sqlite_test.go     ← SQLite CRUD, FTS, hybrid, conversations, habits (requiere CGO)
 ├── embeddings_test.go        ← AIEmbedder (success, AI error, JSON parse)
 └── embeddings_cache_test.go  ← CachedEmbedder (hit, miss, eviction, error)
 
@@ -299,19 +277,15 @@ req := test.NewMockRequest().
 Cada archivo de test puede tener helpers privados al inicio:
 
 ```go
-func newTestStore(t *testing.T) *SQLiteMemoryService {
+func newTestStore(t *testing.T) *PGMemoryService {
 	t.Helper()
-	dir := t.TempDir()
-	store, err := NewSQLiteMemoryService(filepath.Join(dir, "test.db"))
+	// Use a test PostgreSQL instance
+	store, err := NewPGMemoryService(os.Getenv("TEST_POSTGRES_DSN"))
 	require.NoError(t, err)
 	t.Cleanup(func() { store.Close() })
 	return store
 }
 ```
-
-### Build tags
-
-`memory_sqlite_test.go` tiene `//go:build cgo` porque necesita SQLite. Los tests que usan mocks no necesitan CGO y corren en cualquier entorno.
 
 ## CI (GitHub Actions)
 
@@ -325,6 +299,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - run: go test -race -cover ./...
 ```

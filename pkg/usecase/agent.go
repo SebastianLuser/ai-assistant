@@ -4,7 +4,7 @@ import (
 	"log"
 	"strings"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 )
 
 const agentMaxTurns = 10

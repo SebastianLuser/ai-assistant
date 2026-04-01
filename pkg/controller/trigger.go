@@ -3,8 +3,8 @@ package controller
 import (
 	"net/http"
 
-	"asistente/pkg/usecase"
-	"asistente/web"
+	"jarvis/pkg/usecase"
+	"jarvis/web"
 )
 
 // TriggerController handles webhook trigger endpoints.

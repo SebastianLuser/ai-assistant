@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"asistente/web"
-	webgin "asistente/web/gin"
+	"jarvis/web"
+	webgin "jarvis/web/gin"
 )
 
 type (

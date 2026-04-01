@@ -3,9 +3,9 @@ package usecase
 import (
 	"testing"
 
-	"asistente/internal/hooks"
-	"asistente/pkg/domain"
-	"asistente/test"
+	"jarvis/internal/hooks"
+	"jarvis/pkg/domain"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -229,7 +229,7 @@ func TestMessageRouter_ProcessMessage_GroupChat_NotMentioned(t *testing.T) {
 
 	ch := &test.MockChannel{ChannelName: "test"}
 
-	meta := domain.MessageMeta{IsGroup: true, BotName: "asistente"}
+	meta := domain.MessageMeta{IsGroup: true, BotName: "jarvis"}
 	router.ProcessMessage(ch, "1234567890", "msg-1", "hola amigos", meta)
 
 	// Should not have been processed (no mention)
@@ -245,7 +245,7 @@ func TestMessageRouter_ProcessMessage_GroupChat_Mentioned(t *testing.T) {
 	ch.On("AckMessage", "msg-1").Return(nil)
 	ch.On("SendMessage", "1234567890", mock.Anything).Return(nil)
 
-	meta := domain.MessageMeta{IsGroup: true, BotName: "asistente"}
+	meta := domain.MessageMeta{IsGroup: true, BotName: "jarvis"}
 	router.ProcessMessage(ch, "1234567890", "msg-1", "hola @asistente", meta)
 
 	ch.AssertCalled(t, "AckMessage", "msg-1")

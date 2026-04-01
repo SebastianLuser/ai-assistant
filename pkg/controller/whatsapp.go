@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/usecase"
-	"asistente/web"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/usecase"
+	"jarvis/web"
 )
 
 type WhatsAppController struct {

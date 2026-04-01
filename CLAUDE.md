@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Asistente Personal — microservicio Go que funciona como backend de un asistente personal accesible por WhatsApp. Parsea gastos, guarda notas con busqueda semantica, mantiene memoria de conversaciones, y ejecuta acciones proactivas via cron jobs. Se conecta con n8n como orquestador de workflows.
+Jarvis — microservicio Go que funciona como backend de un asistente personal accesible por WhatsApp. Parsea gastos, guarda notas con busqueda semantica, mantiene memoria de conversaciones, y ejecuta acciones proactivas via cron jobs.
 
 ## Tech Stack
 
@@ -19,11 +19,11 @@ Asistente Personal — microservicio Go que funciona como backend de un asistent
 
 ```bash
 make run          # go run ./cmd
-make build        # CGO_ENABLED=0 go build -o asistente ./cmd
+make build        # CGO_ENABLED=0 go build -o jarvis ./cmd
 make test         # go test -race ./...
 make test-cover   # test + coverage report
 make vet          # go vet ./...
-make docker       # docker compose up -d --build asistente
+make docker       # docker compose up -d --build jarvis
 make docker-all   # docker compose up -d --build (full stack)
 make docker-down  # docker compose down
 make clean        # remove binaries and coverage

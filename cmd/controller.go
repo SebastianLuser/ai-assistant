@@ -3,14 +3,14 @@ package main
 import (
 	"net/http"
 
-	"asistente/config"
-	"asistente/internal/hooks"
-	"asistente/internal/skills"
-	"asistente/pkg/controller"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
-	"asistente/pkg/usecase"
-	"asistente/web"
+	"jarvis/config"
+	"jarvis/internal/hooks"
+	"jarvis/internal/skills"
+	"jarvis/pkg/controller"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
+	"jarvis/pkg/usecase"
+	"jarvis/web"
 )
 
 type Controllers struct {

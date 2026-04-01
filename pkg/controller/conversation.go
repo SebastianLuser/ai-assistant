@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"asistente/internal/hooks"
-	"asistente/internal/skills"
-	"asistente/pkg/domain"
-	"asistente/pkg/usecase"
-	"asistente/web"
+	"jarvis/internal/hooks"
+	"jarvis/internal/skills"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/usecase"
+	"jarvis/web"
 )
 
 type ConversationController struct {

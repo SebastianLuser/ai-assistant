@@ -3,8 +3,8 @@ package usecase
 import (
 	"log"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 type MemoryUseCase struct {

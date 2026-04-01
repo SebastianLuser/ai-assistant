@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
-	"asistente/boot"
-	"asistente/internal/middleware"
-	"asistente/web"
-	webgin "asistente/web/gin"
+	"jarvis/boot"
+	"jarvis/internal/middleware"
+	"jarvis/web"
+	webgin "jarvis/web/gin"
 )
 
 func setupRoutes(c Controllers) boot.RoutesMapper[boot.GinRouter] {

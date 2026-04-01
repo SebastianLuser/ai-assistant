@@ -3,9 +3,9 @@ package controller
 import (
 	"net/http"
 
-	"asistente/internal/skills"
-	"asistente/pkg/domain"
-	"asistente/web"
+	"jarvis/internal/skills"
+	"jarvis/pkg/domain"
+	"jarvis/web"
 )
 
 // SkillController handles skill management endpoints.

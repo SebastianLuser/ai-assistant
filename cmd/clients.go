@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	"asistente/clients"
-	"asistente/config"
-	"asistente/pkg/domain"
+	"jarvis/clients"
+	"jarvis/config"
+	"jarvis/pkg/domain"
 )
 
 type Clients struct {

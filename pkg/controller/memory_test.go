@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
-	"asistente/test"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"asistente/clients"
-	"asistente/internal/skills"
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/clients"
+	"jarvis/internal/skills"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 // ReminderSender is called when a reminder fires.

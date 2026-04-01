@@ -3,7 +3,7 @@ package usecase
 import (
 	"testing"
 
-	"asistente/pkg/domain"
+	"jarvis/pkg/domain"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

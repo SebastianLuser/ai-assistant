@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"asistente/pkg/domain"
-	"asistente/pkg/usecase"
-	"asistente/test"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/usecase"
+	"jarvis/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,23 +16,23 @@ import (
 var (
 	errProjectFTS = errors.New("fts failed")
 	projectNotes  = []domain.Memory{
-		{ID: 1, Content: "setup repo", Tags: []string{"asistente", "project"}, CreatedAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)},
-		{ID: 2, Content: "add tests", Tags: []string{"asistente"}, CreatedAt: time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)},
+		{ID: 1, Content: "setup repo", Tags: []string{"jarvis", "project"}, CreatedAt: time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)},
+		{ID: 2, Content: "add tests", Tags: []string{"jarvis"}, CreatedAt: time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)},
 	}
 )
 
 func TestProjectUseCase_GetStatus_Success(t *testing.T) {
 	repo := new(test.MockMemoryService)
-	repo.On("SearchFTS", "asistente", 20).Return(projectNotes, nil)
+	repo.On("SearchFTS", "jarvis", 20).Return(projectNotes, nil)
 	srv, ai := test.NewMockClaudeServer(test.ClaudeResponse{Text: "El proyecto avanza bien"})
 	defer srv.Close()
 	uc := usecase.NewProjectUseCase(repo, nil, ai)
 
-	result, err := uc.GetStatus("asistente")
+	result, err := uc.GetStatus("jarvis")
 
 	require.NoError(t, err)
 	assert.Equal(t, true, result.Success)
-	assert.Equal(t, "asistente", result.Name)
+	assert.Equal(t, "jarvis", result.Name)
 	assert.Equal(t, "El proyecto avanza bien", result.Summary)
 	assert.Equal(t, 2, result.NoteCount)
 	repo.AssertExpectations(t)

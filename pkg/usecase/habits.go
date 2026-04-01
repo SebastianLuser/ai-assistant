@@ -1,8 +1,8 @@
 package usecase
 
 import (
-	"asistente/pkg/domain"
-	"asistente/pkg/service"
+	"jarvis/pkg/domain"
+	"jarvis/pkg/service"
 )
 
 type HabitUseCase struct {

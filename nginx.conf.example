@@ -7,8 +7,8 @@ http {
         server n8n:5678;
     }
 
-    upstream asistente {
-        server asistente:8080;
+    upstream jarvis {
+        server jarvis:8080;
     }
 
     server {
@@ -48,7 +48,7 @@ http {
         }
 
         location /api/ {
-            proxy_pass http://asistente;
+            proxy_pass http://jarvis;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -56,11 +56,11 @@ http {
         }
 
         location /health {
-            proxy_pass http://asistente;
+            proxy_pass http://jarvis;
         }
 
         location /ping {
-            proxy_pass http://asistente;
+            proxy_pass http://jarvis;
         }
 
         location / {

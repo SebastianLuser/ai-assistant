@@ -1,5 +1,5 @@
 -- 001_initial_schema
--- Core tables for the asistente personal assistant (PostgreSQL).
+-- Core tables for the Jarvis personal assistant (PostgreSQL).
 
 -------------------------------------------------------
 -- MEMORIES
