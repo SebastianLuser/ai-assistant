@@ -78,6 +78,10 @@ Ver `.env.example` para la lista completa con defaults. Las integraciones son op
 
 ## Deploy
 
+1. Consegui las API keys siguiendo [SETUP.md](SETUP.md)
+2. Deploy a Contabo + Cloudflare + Coolify siguiendo [DEPLOY.md](DEPLOY.md)
+
+Local:
 ```bash
 make docker-all   # Levanta jarvis + postgres + dependencias
 ```

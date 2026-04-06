@@ -13,7 +13,7 @@ Jarvis — microservicio Go que funciona como backend de un asistente personal a
 - **Database**: PostgreSQL (tsvector con diccionario spanish para FTS)
 - **AI**: Claude API (Anthropic) o OpenAI para parseo de lenguaje natural y embeddings
 - **Integrations**: Google Sheets, Google Calendar, Notion, Obsidian, WhatsApp Business (direct webhook), GitHub, Jira, Spotify, Todoist, Gmail, ClickUp
-- **Deploy**: Docker multi-stage, Hetzner VPS + Coolify
+- **Deploy**: Docker multi-stage, Contabo VPS + Cloudflare + Coolify
 
 ## Development Commands
 
