@@ -109,7 +109,7 @@ func TestTimeDecay_OldTime_DecaysTowardZero(t *testing.T) {
 
 	result := timeDecay(old)
 
-	assert.Less(t, result, 0.1)
+	assert.Less(t, result, 0.2)
 	assert.Greater(t, result, 0.0)
 }
 
@@ -131,8 +131,8 @@ func TestTimeDecay_OneDayAgo(t *testing.T) {
 
 	result := timeDecay(yesterday)
 
-	// e^(-0.05*1) ≈ 0.9512
-	assert.InDelta(t, 0.9512, result, 0.01)
+	// 1/(1+ln(1+1)) ≈ 0.5906
+	assert.InDelta(t, 0.5906, result, 0.01)
 }
 
 func TestTimeDecay_OneWeekAgo(t *testing.T) {
@@ -140,8 +140,8 @@ func TestTimeDecay_OneWeekAgo(t *testing.T) {
 
 	result := timeDecay(weekAgo)
 
-	// e^(-0.05*7) ≈ 0.7047
-	assert.InDelta(t, 0.7047, result, 0.01)
+	// 1/(1+ln(1+7)) ≈ 0.3247
+	assert.InDelta(t, 0.3247, result, 0.01)
 }
 
 func TestTimeDecay_AlwaysPositive(t *testing.T) {

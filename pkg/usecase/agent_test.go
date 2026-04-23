@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 
 	"jarvis/pkg/domain"
@@ -39,7 +40,7 @@ func TestAgentUseCase_Run_SimpleText(t *testing.T) {
 	}
 
 	agent := NewAgentUseCase(provider, NewToolRegistry())
-	result, err := agent.Run("system", []domain.Message{{Role: "user", Content: "hola"}})
+	result, err := agent.Run(context.Background(), "system", []domain.Message{{Role: "user", Content: "hola"}})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Hola!", result)
@@ -63,12 +64,12 @@ func TestAgentUseCase_Run_ToolCall(t *testing.T) {
 	}
 
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "test_tool"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "test_tool"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "result for " + inputString(input, "q"), nil
 	})
 
 	agent := NewAgentUseCase(provider, reg)
-	result, err := agent.Run("system", []domain.Message{{Role: "user", Content: "buscar test"}})
+	result, err := agent.Run(context.Background(), "system", []domain.Message{{Role: "user", Content: "buscar test"}})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Encontré: result", result)
@@ -89,12 +90,12 @@ func TestAgentUseCase_Run_MaxTurnsExceeded(t *testing.T) {
 	}
 
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "loop_tool"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "loop_tool"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "ok", nil
 	})
 
 	agent := &AgentUseCase{ai: provider, tools: reg, maxTurns: 3}
-	_, err := agent.Run("system", []domain.Message{{Role: "user", Content: "loop"}})
+	_, err := agent.Run(context.Background(), "system", []domain.Message{{Role: "user", Content: "loop"}})
 
 	assert.ErrorIs(t, err, domain.ErrAgentMaxTurns)
 }
@@ -116,12 +117,12 @@ func TestAgentUseCase_Run_ToolError(t *testing.T) {
 	}
 
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "fail_tool"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "fail_tool"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "", assert.AnError
 	})
 
 	agent := NewAgentUseCase(provider, reg)
-	result, err := agent.Run("system", []domain.Message{{Role: "user", Content: "do it"}})
+	result, err := agent.Run(context.Background(), "system", []domain.Message{{Role: "user", Content: "do it"}})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Tool failed, sorry", result)

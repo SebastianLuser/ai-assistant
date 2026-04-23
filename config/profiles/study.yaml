@@ -1,0 +1,9 @@
+name: study
+description: Perfil estudio - notas, investigación, universidad
+allowed_skills: [memory, notes, obsidian, notion, university, uade, links, bookmarks]
+allowed_tools:
+  - save_note
+  - search_notes
+allowed_agents: [study]
+allowed_rules: []
+extra_prompt: "Estás en modo estudio. Ayudá a entender conceptos y a organizar apuntes."

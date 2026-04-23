@@ -40,3 +40,12 @@ var ClearConversation string
 
 //go:embed postgres/delete/prune_conversations.sql
 var PruneConversations string
+
+//go:embed postgres/insert/upsert_catalog.sql
+var UpsertCatalog string
+
+//go:embed postgres/select/catalog_list.sql
+var CatalogList string
+
+//go:embed postgres/select/catalog_get.sql
+var CatalogGet string

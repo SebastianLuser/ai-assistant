@@ -1,0 +1,12 @@
+{
+  "arcane_version": "1.0.0",
+  "profile_command": "backend-go",
+  "profiles": [
+    "core",
+    "backend-go"
+  ],
+  "installed_at": "2026-04-21T21:35:10Z",
+  "total_skills": 44,
+  "total_rules": 6,
+  "source": "C:\\Users\\Educabot\\Desktop\\Personal\\Claude-Code-Arcane"
+}

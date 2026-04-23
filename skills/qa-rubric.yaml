@@ -1,0 +1,7 @@
+min_description_len: 10
+required_fields:
+  - name
+  - description
+  - tags
+max_content_len: 50000
+min_tags: 1

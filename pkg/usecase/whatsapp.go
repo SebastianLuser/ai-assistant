@@ -11,7 +11,10 @@ import (
 	"time"
 
 	"jarvis/internal/hooks"
+	"jarvis/internal/profiles"
+	"jarvis/internal/rules"
 	"jarvis/internal/skills"
+	"jarvis/internal/tracing"
 	"jarvis/pkg/domain"
 )
 
@@ -24,8 +27,12 @@ type MessageRouter struct {
 	orchestrator *AgentOrchestrator
 	transcriber  domain.Transcriber
 	skills       skills.SkillProvider
+	rules        *rules.Loader
+	profile      *profiles.Profile
 	hooks        *hooks.Registry
 	usage        *UsageTracker
+	depChecker   *skills.DependencyChecker
+	promptCache  *PromptCache
 	allowedFrom  string
 
 	pairingMu     sync.RWMutex
@@ -40,6 +47,7 @@ func NewMessageRouter(
 	orchestrator *AgentOrchestrator,
 	transcriber domain.Transcriber,
 	skillsProvider skills.SkillProvider,
+	rulesLoader *rules.Loader,
 	hooksRegistry *hooks.Registry,
 	usageTracker *UsageTracker,
 	allowedFrom string,
@@ -57,7 +65,9 @@ func NewMessageRouter(
 		agent:         agent,
 		transcriber:   transcriber,
 		skills:        skillsProvider,
+		rules:         rulesLoader,
 		hooks:         hooksRegistry,
+		promptCache:   NewPromptCache(5 * time.Minute),
 		allowedFrom:   allowedFrom,
 		pairingCode:   code,
 		pairedSenders: make(map[string]bool),
@@ -71,6 +81,16 @@ func (r *MessageRouter) GetPairingCode() string {
 	return r.pairingCode
 }
 
+// SetProfile changes the active profile for this router.
+func (r *MessageRouter) SetProfile(p *profiles.Profile) {
+	r.profile = p
+}
+
+// SetDependencyChecker sets the checker for skill dependency availability.
+func (r *MessageRouter) SetDependencyChecker(dc *skills.DependencyChecker) {
+	r.depChecker = dc
+}
+
 func generatePairingCode() string {
 	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
@@ -82,11 +102,10 @@ func generatePairingCode() string {
 // ProcessMessage handles an incoming text message from any channel.
 // Optional meta can be passed for group chat routing.
 func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text string, meta ...domain.MessageMeta) {
-	// Group chat: only respond if mentioned.
 	if len(meta) > 0 && meta[0].IsGroup {
 		botName := strings.ToLower(meta[0].BotName)
 		if botName != "" && !strings.Contains(strings.ToLower(text), "@"+botName) {
-			return // ignore group messages that don't mention the bot
+			return
 		}
 	}
 
@@ -95,23 +114,27 @@ func (r *MessageRouter) ProcessMessage(ch domain.Channel, from, messageID, text 
 		return
 	}
 
+	ctx := tracing.WithTraceID(context.Background(), tracing.NewTraceID())
+	ctx = tracing.WithChannel(ctx, ch.Name())
+	slog := tracing.Logger(ctx)
+
 	_ = ch.AckMessage(messageID)
 	if ti, ok := ch.(domain.TypingIndicator); ok {
 		_ = ti.SendTyping(from)
 	}
-	log.Printf("%s: from=%s msg=%q", ch.Name(), from, truncate(text, 80))
+	slog.Info("message received", "from", from, "msg", truncate(text, 80))
 
-	response, err := r.handleMessage(from, text, ch.Name())
+	response, err := r.handleMessage(ctx, from, text, ch.Name())
 	if err != nil {
-		log.Printf("%s: error: %v", ch.Name(), err)
+		slog.Error("message handling failed", "err", err)
 		response = "Perdón, hubo un error procesando tu mensaje. Intentá de nuevo."
 	}
 
 	if err := ch.SendMessage(from, response); err != nil {
-		log.Printf("%s: failed to send reply to %s: %v", ch.Name(), from, err)
+		slog.Error("failed to send reply", "from", from, "err", err)
 	}
 
-	r.hooks.Emit(context.Background(), hooks.MessageProcessed, map[string]string{
+	r.hooks.Emit(ctx, hooks.MessageProcessed, map[string]string{
 		"channel": ch.Name(), "from": from, "message": text,
 	})
 }
@@ -197,7 +220,9 @@ func (r *MessageRouter) ProcessImageMessage(ch domain.Channel, from, messageID, 
 
 	text := "[Imagen adjunta: data:" + mimeType + ";base64," + truncate(b64, 100) + "...]\n" + prompt
 
-	response, err := r.handleMessage(from, text, ch.Name())
+	ctx := tracing.WithTraceID(context.Background(), tracing.NewTraceID())
+	ctx = tracing.WithChannel(ctx, ch.Name())
+	response, err := r.handleMessage(ctx, from, text, ch.Name())
 	if err != nil {
 		log.Printf("%s: error processing image: %v", ch.Name(), err)
 		response = "No pude procesar la imagen."
@@ -208,7 +233,7 @@ func (r *MessageRouter) ProcessImageMessage(ch domain.Channel, from, messageID, 
 	}
 }
 
-func (r *MessageRouter) handleMessage(from, text, channelName string) (string, error) {
+func (r *MessageRouter) handleMessage(ctx context.Context, from, text, channelName string) (string, error) {
 	sessionID := channelName + "-" + from
 
 	if err := r.conversation.Ingest(sessionID, domain.RoleUser, text); err != nil {
@@ -220,14 +245,19 @@ func (r *MessageRouter) handleMessage(from, text, channelName string) (string, e
 		return "", err
 	}
 
+	tags := skills.ClassifyMessage(text)
+	ctx = tracing.WithClassifiedTags(ctx, tags)
+	if r.profile != nil {
+		ctx = tracing.WithProfile(ctx, r.profile.Name)
+	}
+
 	systemPrompt := r.buildSystemPrompt(text, channelName)
 
-	// Use orchestrator > agent > plain chat (in order of capability).
 	var response string
 	if r.orchestrator != nil {
-		response, err = r.orchestrator.Run(systemPrompt, messages)
+		response, err = r.orchestrator.Run(ctx, systemPrompt, messages)
 	} else if r.agent != nil {
-		response, err = r.agent.Run(systemPrompt, messages)
+		response, err = r.agent.Run(ctx, systemPrompt, messages)
 	} else {
 		response, err = r.ai.CompleteMessages(systemPrompt, messages)
 	}
@@ -237,7 +267,6 @@ func (r *MessageRouter) handleMessage(from, text, channelName string) (string, e
 
 	_ = r.conversation.Ingest(sessionID, domain.RoleAssistant, response)
 
-	// Track estimated token usage (rough: 4 chars ≈ 1 token).
 	if r.usage != nil {
 		inputToks := len(systemPrompt)/4 + len(text)/4
 		outputToks := len(response) / 4
@@ -249,15 +278,7 @@ func (r *MessageRouter) handleMessage(from, text, channelName string) (string, e
 
 func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
 	now := time.Now()
-	var sb strings.Builder
-	sb.WriteString(domain.DefaultSystemPrompt)
-	sb.WriteString("El usuario te habla por " + channelName + ". Sé conciso.\n")
-	sb.WriteString("Usá las herramientas disponibles cuando sea apropiado para ejecutar acciones.\n\n")
 
-	// Context injection: dynamic context based on current state.
-	sb.WriteString("## Contexto actual\n")
-	sb.WriteString("Fecha: " + now.Format("Monday 02/01/2006") + "\n")
-	sb.WriteString("Hora: " + now.Format("15:04") + "\n")
 	dayPeriod := "madrugada"
 	switch h := now.Hour(); {
 	case h >= 6 && h < 12:
@@ -267,18 +288,43 @@ func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
 	case h >= 18 && h < 22:
 		dayPeriod = "noche"
 	}
+
+	tags := skills.ClassifyMessage(message)
+	profileName := ""
+	if r.profile != nil {
+		profileName = r.profile.Name
+	}
+	cacheKey := profileName + "|" + channelName + "|" + dayPeriod + "|" + strings.Join(tags, ",")
+
+	if r.promptCache != nil {
+		if cached, ok := r.promptCache.Get(cacheKey); ok {
+			return cached
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(domain.DefaultSystemPrompt)
+	sb.WriteString("El usuario te habla por " + channelName + ". Sé conciso.\n")
+	sb.WriteString("Usá las herramientas disponibles cuando sea apropiado para ejecutar acciones.\n\n")
+
+	sb.WriteString("## Contexto actual\n")
+	sb.WriteString("Fecha: " + now.Format("Monday 02/01/2006") + "\n")
+	sb.WriteString("Hora: " + now.Format("15:04") + "\n")
 	sb.WriteString("Momento del día: " + dayPeriod + "\n\n")
 
 	if r.skills == nil {
-		return sb.String()
+		prompt := sb.String()
+		if r.promptCache != nil { r.promptCache.Set(cacheKey, prompt) }
+		return prompt
 	}
 
 	loaded, err := r.skills.LoadEnabled()
 	if err != nil || len(loaded) == 0 {
-		return sb.String()
+		prompt := sb.String()
+		if r.promptCache != nil { r.promptCache.Set(cacheKey, prompt) }
+		return prompt
 	}
 
-	tags := skills.ClassifyMessage(message)
 	var relevant []skills.Skill
 	if len(tags) == 0 {
 		relevant = loaded
@@ -286,10 +332,58 @@ func (r *MessageRouter) buildSystemPrompt(message, channelName string) string {
 		relevant = skills.FilterByTags(loaded, tags...)
 	}
 
+	if r.profile != nil {
+		var filtered []skills.Skill
+		for _, s := range relevant {
+			for _, tag := range s.Tags {
+				if r.profile.AllowsSkillTag(tag) {
+					filtered = append(filtered, s)
+					break
+				}
+			}
+		}
+		relevant = filtered
+	}
+
+	if r.depChecker != nil {
+		var available []skills.Skill
+		for _, s := range relevant {
+			if len(s.DependsOn) == 0 || r.depChecker.AllAvailable(s.DependsOn) {
+				available = append(available, s)
+			} else if s.FallbackAction != "" {
+				sb.WriteString("[Nota: " + s.Name + " no disponible. Alternativa: " + s.FallbackAction + "]\n")
+			}
+		}
+		relevant = available
+	}
+
 	sb.WriteString(domain.SkillsSectionHeader)
 	sb.WriteString(skills.FormatForPrompt(relevant))
 
-	return sb.String()
+	if r.profile != nil && r.profile.ExtraPrompt != "" {
+		sb.WriteString("\n" + r.profile.ExtraPrompt + "\n\n")
+	}
+
+	if r.rules != nil {
+		allRules, err := r.rules.LoadAll()
+		if err == nil && len(allRules) > 0 {
+			matched := rules.MatchRules(allRules, tags, now, channelName)
+			if r.profile != nil {
+				var filteredRules []rules.Rule
+				for _, rule := range matched {
+					if r.profile.AllowsRule(rule.Name) {
+						filteredRules = append(filteredRules, rule)
+					}
+				}
+				matched = filteredRules
+			}
+			sb.WriteString(rules.FormatForPrompt(matched))
+		}
+	}
+
+	prompt := sb.String()
+	if r.promptCache != nil { r.promptCache.Set(cacheKey, prompt) }
+	return prompt
 }
 
 func (r *MessageRouter) isAuthorized(from string) bool {

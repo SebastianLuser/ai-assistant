@@ -2,9 +2,14 @@ package main
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"jarvis/config"
+	"jarvis/internal/agents"
 	"jarvis/internal/hooks"
+	"jarvis/internal/profiles"
+	"jarvis/internal/rules"
 	"jarvis/internal/skills"
 	"jarvis/pkg/controller"
 	"jarvis/pkg/domain"
@@ -35,6 +40,9 @@ type Controllers struct {
 	Skill    *controller.SkillController
 	Trigger  *controller.TriggerController
 	Usage    *controller.UsageController
+	Catalog  *controller.CatalogController
+	SkillsQA *controller.SkillsQAController
+	Health   *controller.HealthController
 	Pairing  web.Handler
 }
 
@@ -99,6 +107,22 @@ func NewControllers(
 	usageTracker := usecase.NewUsageTracker()
 	c.Usage = controller.NewUsageController(usageTracker)
 
+	var catalogSvc service.CatalogService
+	if pgMem, ok := memorySvc.(*service.PGMemoryService); ok {
+		catalogSvc = service.NewCatalogServiceFromDB(pgMem.DB())
+	} else {
+		catalogSvc = service.NullCatalogService{}
+	}
+	c.Catalog = controller.NewCatalogController(catalogSvc)
+
+	rubric, _ := skills.LoadRubric("skills/qa-rubric.yaml")
+	c.SkillsQA = controller.NewSkillsQAController(skillsLoader, rubric)
+
+	healthChecks := buildHealthChecks(cl)
+	healthChecker := usecase.NewHealthChecker(healthChecks, catalogSvc)
+	healthChecker.Start(5 * time.Minute)
+	c.Health = controller.NewHealthController(healthChecker)
+
 	if cl.Figma != nil {
 		c.Figma = controller.NewFigmaController(cl.Figma)
 	}
@@ -120,12 +144,25 @@ func NewControllers(
 		}
 
 		toolReg := usecase.BuildToolRegistry(financeUC, memorySvc, embedder, cl.Calendar, cl.Gmail, cl.Todoist, cl.GitHub, cl.Jira, cl.Spotify, cl.Notion, cl.Obsidian, sw, reminderMgr)
+		toolReg.SetCatalog(catalogSvc)
+		toolReg.SetHooks(hooksRegistry)
+		if cfg.DryRunTools != "" {
+			toolReg.SetDryRunTools(strings.Split(cfg.DryRunTools, ","))
+		}
 
 		var agent *usecase.AgentUseCase
 		var orchestrator *usecase.AgentOrchestrator
 		if tp, ok := cl.AI.(domain.ToolUseProvider); ok {
 			agent = usecase.NewAgentUseCase(tp, toolReg)
-			orchestrator = usecase.NewAgentOrchestrator(tp, toolReg, usecase.DefaultAgents())
+			if loaded, err := skillsLoader.LoadEnabled(); err == nil {
+				agent.SetSkills(loaded)
+			}
+			agentDefs := usecase.DefaultAgents()
+			agentsLoader := agents.NewLoader(cfg.AgentsDir)
+			if loaded, err := agentsLoader.LoadAll(); err == nil && len(loaded) > 0 {
+				agentDefs = loaded
+			}
+			orchestrator = usecase.NewAgentOrchestrator(tp, toolReg, agentDefs)
 		}
 
 		var transcriber domain.Transcriber
@@ -133,7 +170,27 @@ func NewControllers(
 			transcriber = cl.Transcriber
 		}
 
-		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, orchestrator, transcriber, skillsLoader, hooksRegistry, usageTracker, cfg.WhatsAppTo)
+		rulesLoader := rules.NewLoader(cfg.RulesDir)
+		router = usecase.NewMessageRouter(chatUC, cl.AI, agent, orchestrator, transcriber, skillsLoader, rulesLoader, hooksRegistry, usageTracker, cfg.WhatsAppTo)
+
+		profileLoader := profiles.NewLoader(cfg.ProfilesDir)
+		if profile, err := profileLoader.Load(cfg.DefaultProfile); err == nil {
+			router.SetProfile(profile)
+		}
+
+		router.SetDependencyChecker(skills.NewDependencyChecker(map[string]bool{
+			"calendar": cl.Calendar != nil,
+			"sheets":   cl.Sheets != nil,
+			"github":   cl.GitHub != nil,
+			"jira":     cl.Jira != nil,
+			"spotify":  cl.Spotify != nil,
+			"todoist":  cl.Todoist != nil,
+			"gmail":    cl.Gmail != nil,
+			"notion":   cl.Notion != nil,
+			"obsidian": cl.Obsidian != nil,
+			"clickup":  cl.ClickUp != nil,
+			"figma":    cl.Figma != nil,
+		}))
 	}
 
 	if router != nil {
@@ -153,4 +210,36 @@ func NewControllers(
 	}
 
 	return c
+}
+
+func buildHealthChecks(cl Clients) []usecase.IntegrationCheck {
+	var checks []usecase.IntegrationCheck
+	type named struct {
+		name      string
+		available bool
+	}
+	integrations := []named{
+		{"calendar", cl.Calendar != nil},
+		{"github", cl.GitHub != nil},
+		{"jira", cl.Jira != nil},
+		{"spotify", cl.Spotify != nil},
+		{"todoist", cl.Todoist != nil},
+		{"gmail", cl.Gmail != nil},
+		{"notion", cl.Notion != nil},
+		{"obsidian", cl.Obsidian != nil},
+		{"clickup", cl.ClickUp != nil},
+		{"figma", cl.Figma != nil},
+		{"whatsapp", cl.WhatsApp != nil},
+		{"telegram", cl.Telegram != nil},
+	}
+	for _, ig := range integrations {
+		ig := ig
+		if ig.available {
+			checks = append(checks, usecase.IntegrationCheck{
+				Name:  ig.name,
+				Check: func() error { return nil },
+			})
+		}
+	}
+	return checks
 }

@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -16,11 +17,11 @@ var _ = time.Now
 
 func TestToolRegistry_Register_And_Execute(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "greet"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "greet"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "hello " + inputString(input, "name"), nil
 	})
 
-	result, err := reg.Execute("greet", map[string]any{"name": "world"})
+	result, err := reg.Execute(context.Background(),"greet", map[string]any{"name": "world"})
 
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", result)
@@ -29,7 +30,7 @@ func TestToolRegistry_Register_And_Execute(t *testing.T) {
 func TestToolRegistry_Execute_NotFound(t *testing.T) {
 	reg := NewToolRegistry()
 
-	_, err := reg.Execute("nonexistent", nil)
+	_, err := reg.Execute(context.Background(),"nonexistent", nil)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrToolNotFound)
@@ -37,8 +38,8 @@ func TestToolRegistry_Execute_NotFound(t *testing.T) {
 
 func TestToolRegistry_Definitions_ReturnsAll(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "tool_a"}, func(input map[string]any) (string, error) { return "", nil })
-	reg.Register(domain.ToolDefinition{Name: "tool_b"}, func(input map[string]any) (string, error) { return "", nil })
+	reg.Register(domain.ToolDefinition{Name: "tool_a"}, func(_ context.Context, input map[string]any) (string, error) { return "", nil })
+	reg.Register(domain.ToolDefinition{Name: "tool_b"}, func(_ context.Context, input map[string]any) (string, error) { return "", nil })
 
 	defs := reg.Definitions()
 
@@ -57,11 +58,11 @@ func TestToolRegistry_Definitions_Empty(t *testing.T) {
 
 func TestToolRegistry_Execute_HandlerError(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "fail"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "fail"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "", assert.AnError
 	})
 
-	_, err := reg.Execute("fail", map[string]any{})
+	_, err := reg.Execute(context.Background(),"fail", map[string]any{})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, assert.AnError)
@@ -222,7 +223,7 @@ func TestBuildToolRegistry_SaveNoteHandler_Success(t *testing.T) {
 
 	reg := BuildToolRegistry(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := reg.Execute("save_note", map[string]any{"content": "my note"})
+	result, err := reg.Execute(context.Background(),"save_note", map[string]any{"content": "my note"})
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "42")
@@ -236,7 +237,7 @@ func TestBuildToolRegistry_SaveNoteHandler_WithEmbedder(t *testing.T) {
 
 	reg := BuildToolRegistry(nil, repo, embedder, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := reg.Execute("save_note", map[string]any{"content": "my note"})
+	result, err := reg.Execute(context.Background(),"save_note", map[string]any{"content": "my note"})
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "1")
@@ -248,7 +249,7 @@ func TestBuildToolRegistry_SearchNotesHandler_FTS(t *testing.T) {
 
 	reg := BuildToolRegistry(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := reg.Execute("search_notes", map[string]any{"query": "hello"})
+	result, err := reg.Execute(context.Background(),"search_notes", map[string]any{"query": "hello"})
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "hello world")
@@ -262,7 +263,7 @@ func TestBuildToolRegistry_SearchNotesHandler_WithEmbedder_Hybrid(t *testing.T) 
 
 	reg := BuildToolRegistry(nil, repo, embedder, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := reg.Execute("search_notes", map[string]any{"query": "hello"})
+	result, err := reg.Execute(context.Background(),"search_notes", map[string]any{"query": "hello"})
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "hybrid")
@@ -271,7 +272,7 @@ func TestBuildToolRegistry_SearchNotesHandler_WithEmbedder_Hybrid(t *testing.T) 
 func TestBuildToolRegistry_GetUsageHandler(t *testing.T) {
 	reg := BuildToolRegistry(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := reg.Execute("get_usage", map[string]any{})
+	result, err := reg.Execute(context.Background(),"get_usage", map[string]any{})
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "Usage tracking")
@@ -281,7 +282,7 @@ func TestBuildToolRegistry_SetReminderHandler_Success(t *testing.T) {
 	rm := NewReminderManager(nil)
 	reg := BuildToolRegistry(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, rm)
 
-	result, err := reg.Execute("set_reminder", map[string]any{"message": "call mom", "minutes": 30.0})
+	result, err := reg.Execute(context.Background(),"set_reminder", map[string]any{"message": "call mom", "minutes": 30.0})
 
 	assert.NoError(t, err)
 	assert.Contains(t, result, "30 minutos")
@@ -291,7 +292,7 @@ func TestBuildToolRegistry_SetReminderHandler_InvalidMinutes(t *testing.T) {
 	rm := NewReminderManager(nil)
 	reg := BuildToolRegistry(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, rm)
 
-	_, err := reg.Execute("set_reminder", map[string]any{"message": "test", "minutes": 0.0})
+	_, err := reg.Execute(context.Background(),"set_reminder", map[string]any{"message": "test", "minutes": 0.0})
 
 	assert.Error(t, err)
 }
@@ -302,7 +303,7 @@ func TestBuildToolRegistry_SaveNoteHandler_WithTags(t *testing.T) {
 
 	reg := BuildToolRegistry(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	result, err := reg.Execute("save_note", map[string]any{
+	result, err := reg.Execute(context.Background(),"save_note", map[string]any{
 		"content": "tagged note",
 		"tags":    []any{"important"},
 	})
@@ -317,21 +318,21 @@ func TestBuildToolRegistry_SearchNotesHandler_CustomLimit(t *testing.T) {
 
 	reg := BuildToolRegistry(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
-	_, err := reg.Execute("search_notes", map[string]any{"query": "test", "limit": 10.0})
+	_, err := reg.Execute(context.Background(),"search_notes", map[string]any{"query": "test", "limit": 10.0})
 
 	assert.NoError(t, err)
 }
 
 func TestToolRegistry_MultipleRegistrations_LastWins(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "tool"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "tool"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "first", nil
 	})
-	reg.Register(domain.ToolDefinition{Name: "tool"}, func(input map[string]any) (string, error) {
+	reg.Register(domain.ToolDefinition{Name: "tool"}, func(_ context.Context, input map[string]any) (string, error) {
 		return "second", nil
 	})
 
-	result, err := reg.Execute("tool", nil)
+	result, err := reg.Execute(context.Background(),"tool", nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "second", result)

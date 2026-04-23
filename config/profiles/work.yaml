@@ -1,0 +1,15 @@
+name: work
+description: Perfil laboral - desarrollo y gestión de proyectos
+allowed_skills: [github, jira, clickup, gmail, calendar, code, repos, tasks, project, email]
+allowed_tools:
+  - list_github_issues
+  - create_github_issue
+  - get_my_jira_issues
+  - get_today_events
+  - create_event
+  - get_unread_emails
+  - list_tasks
+  - create_task
+allowed_agents: [dev, planner]
+allowed_rules: [dev]
+extra_prompt: "Estás en modo trabajo. Priorizá productividad y brevedad."

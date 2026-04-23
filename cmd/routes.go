@@ -17,6 +17,7 @@ func setupRoutes(c Controllers) boot.RoutesMapper[boot.GinRouter] {
 
 func middlewareMapper(webhookSecret string) boot.MiddlewareMapper[boot.GinMiddlewareRouter] {
 	return func(_ context.Context, _ boot.Config, router boot.GinMiddlewareRouter) {
+		router.Use(webgin.NewInterceptor(middleware.TraceID()))
 		if webhookSecret != "" {
 			router.Use(webgin.NewInterceptor(middleware.WebhookAuth(webhookSecret)))
 		}
@@ -134,6 +135,20 @@ func registerRoutes(router boot.GinRouter, c Controllers) {
 
 	if c.Usage != nil {
 		api.GET("/usage", webgin.NewHandlerJSON(c.Usage.GetUsage))
+	}
+
+	if c.SkillsQA != nil {
+		api.GET("/skills/report", webgin.NewHandlerJSON(c.SkillsQA.Report))
+		api.POST("/skills/validate", webgin.NewHandlerJSON(c.SkillsQA.Validate))
+	}
+
+	if c.Catalog != nil {
+		api.GET("/catalog", webgin.NewHandlerJSON(c.Catalog.List))
+		api.GET("/catalog/:name", webgin.NewHandlerJSON(c.Catalog.Get))
+	}
+
+	if c.Health != nil {
+		api.GET("/health", webgin.NewHandlerJSON(c.Health.DetailedHealth))
 	}
 
 	if c.Figma != nil {

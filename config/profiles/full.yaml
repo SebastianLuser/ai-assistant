@@ -1,0 +1,7 @@
+name: full
+description: Perfil completo - todas las capacidades habilitadas
+allowed_skills: []
+allowed_tools: []
+allowed_agents: []
+allowed_rules: []
+extra_prompt: ""

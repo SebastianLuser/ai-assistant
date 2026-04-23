@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 
 	"jarvis/pkg/domain"
@@ -27,9 +28,9 @@ func TestAgentOrchestrator_BuildOrchestratorPrompt(t *testing.T) {
 
 func TestAgentOrchestrator_FilterTools_Allowed(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "save_expense"}, func(input map[string]any) (string, error) { return "ok", nil })
-	reg.Register(domain.ToolDefinition{Name: "list_github_issues"}, func(input map[string]any) (string, error) { return "ok", nil })
-	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "save_expense"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "list_github_issues"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
 
 	o := NewAgentOrchestrator(nil, reg, nil)
 	agent := domain.AgentDefinition{
@@ -37,21 +38,21 @@ func TestAgentOrchestrator_FilterTools_Allowed(t *testing.T) {
 		AllowedTools: []string{"save_expense", "save_note"},
 	}
 
-	filtered := o.filterTools(agent)
+	filtered := o.filterTools(context.Background(),agent)
 
 	assert.Len(t, filtered.Definitions(), 2)
 
-	_, err := filtered.Execute("save_expense", nil)
+	_, err := filtered.Execute(context.Background(),"save_expense", nil)
 	assert.NoError(t, err)
 
-	_, err = filtered.Execute("list_github_issues", nil)
+	_, err = filtered.Execute(context.Background(),"list_github_issues", nil)
 	assert.Error(t, err)
 }
 
 func TestAgentOrchestrator_FilterTools_Denied(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "save_expense"}, func(input map[string]any) (string, error) { return "ok", nil })
-	reg.Register(domain.ToolDefinition{Name: "dangerous_tool"}, func(input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "save_expense"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "dangerous_tool"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
 
 	o := NewAgentOrchestrator(nil, reg, nil)
 	agent := domain.AgentDefinition{
@@ -59,7 +60,7 @@ func TestAgentOrchestrator_FilterTools_Denied(t *testing.T) {
 		DeniedTools: []string{"dangerous_tool"},
 	}
 
-	filtered := o.filterTools(agent)
+	filtered := o.filterTools(context.Background(),agent)
 
 	assert.Len(t, filtered.Definitions(), 1)
 	assert.Equal(t, "save_expense", filtered.Definitions()[0].Name)
@@ -67,13 +68,13 @@ func TestAgentOrchestrator_FilterTools_Denied(t *testing.T) {
 
 func TestAgentOrchestrator_FilterTools_NoDelegation(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "delegate_to_agent"}, func(input map[string]any) (string, error) { return "ok", nil })
-	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "delegate_to_agent"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
 
 	o := NewAgentOrchestrator(nil, reg, nil)
 	agent := domain.AgentDefinition{ID: "sub"}
 
-	filtered := o.filterTools(agent)
+	filtered := o.filterTools(context.Background(),agent)
 
 	// delegate_to_agent should be filtered out from sub-agents
 	assert.Len(t, filtered.Definitions(), 1)
@@ -132,7 +133,7 @@ func TestAgentOrchestrator_runSubAgent_NotFound(t *testing.T) {
 	}
 	orch := NewAgentOrchestrator(provider, NewToolRegistry(), nil)
 
-	_, err := orch.runSubAgent("nonexistent", "do something")
+	_, err := orch.runSubAgent(context.Background(),"nonexistent", "do something")
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "agent not found")
@@ -158,7 +159,7 @@ func TestAgentOrchestrator_runSubAgent_Success(t *testing.T) {
 
 	orch := NewAgentOrchestrator(provider, NewToolRegistry(), agents)
 
-	result, err := orch.runSubAgent("helper", "help me")
+	result, err := orch.runSubAgent(context.Background(),"helper", "help me")
 
 	require.NoError(t, err)
 	assert.Equal(t, "Sub-agent result", result)
@@ -185,7 +186,7 @@ func TestAgentOrchestrator_runSubAgent_AIError_ReturnsErrorMessage(t *testing.T)
 
 	orch := NewAgentOrchestrator(provider, NewToolRegistry(), agents)
 
-	result, err := orch.runSubAgent("failing", "do it")
+	result, err := orch.runSubAgent(context.Background(),"failing", "do it")
 
 	require.NoError(t, err)
 	assert.Contains(t, result, "Error del agente Failing Agent")
@@ -202,8 +203,8 @@ func TestAgentOrchestrator_runSubAgent_WithFilteredTools(t *testing.T) {
 	}
 
 	tools := NewToolRegistry()
-	tools.Register(domain.ToolDefinition{Name: "search"}, func(input map[string]any) (string, error) { return "ok", nil })
-	tools.Register(domain.ToolDefinition{Name: "delete"}, func(input map[string]any) (string, error) { return "ok", nil })
+	tools.Register(domain.ToolDefinition{Name: "search"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
+	tools.Register(domain.ToolDefinition{Name: "delete"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
 
 	agents := []domain.AgentDefinition{
 		{
@@ -216,7 +217,7 @@ func TestAgentOrchestrator_runSubAgent_WithFilteredTools(t *testing.T) {
 
 	orch := NewAgentOrchestrator(provider, tools, agents)
 
-	result, err := orch.runSubAgent("limited", "search for something")
+	result, err := orch.runSubAgent(context.Background(),"limited", "search for something")
 
 	require.NoError(t, err)
 	assert.Equal(t, "Done with limited tools", result)
@@ -226,14 +227,14 @@ func TestAgentOrchestrator_runSubAgent_WithFilteredTools(t *testing.T) {
 
 func TestAgentOrchestrator_buildOrchestratorTools_IncludesDelegation(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(input map[string]any) (string, error) { return "ok", nil })
+	reg.Register(domain.ToolDefinition{Name: "save_note"}, func(_ context.Context, input map[string]any) (string, error) { return "ok", nil })
 
 	agents := []domain.AgentDefinition{
 		{ID: "helper", Name: "Helper", Description: "Helps"},
 	}
 
 	o := NewAgentOrchestrator(nil, reg, agents)
-	orchTools := o.buildOrchestratorTools()
+	orchTools := o.buildOrchestratorTools(context.Background())
 
 	defs := orchTools.Definitions()
 
@@ -248,16 +249,16 @@ func TestAgentOrchestrator_buildOrchestratorTools_IncludesDelegation(t *testing.
 
 func TestAgentOrchestrator_buildOrchestratorTools_CopiesExistingTools(t *testing.T) {
 	reg := NewToolRegistry()
-	reg.Register(domain.ToolDefinition{Name: "tool_a"}, func(input map[string]any) (string, error) { return "a", nil })
-	reg.Register(domain.ToolDefinition{Name: "tool_b"}, func(input map[string]any) (string, error) { return "b", nil })
+	reg.Register(domain.ToolDefinition{Name: "tool_a"}, func(_ context.Context, input map[string]any) (string, error) { return "a", nil })
+	reg.Register(domain.ToolDefinition{Name: "tool_b"}, func(_ context.Context, input map[string]any) (string, error) { return "b", nil })
 
 	o := NewAgentOrchestrator(nil, reg, nil)
-	orchTools := o.buildOrchestratorTools()
+	orchTools := o.buildOrchestratorTools(context.Background())
 
 	// Should have tool_a, tool_b, and delegate_to_agent
 	assert.Len(t, orchTools.Definitions(), 3)
 
-	resultA, err := orchTools.Execute("tool_a", nil)
+	resultA, err := orchTools.Execute(context.Background(),"tool_a", nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "a", resultA)
 }
@@ -298,7 +299,7 @@ func TestAgentOrchestrator_Run_WithDelegation(t *testing.T) {
 
 	orch := NewAgentOrchestrator(provider, NewToolRegistry(), agents)
 
-	result, err := orch.Run("system", []domain.Message{{Role: "user", Content: "delegate this"}})
+	result, err := orch.Run(context.Background(), "system", []domain.Message{{Role: "user", Content: "delegate this"}})
 
 	require.NoError(t, err)
 	assert.Equal(t, "Final answer from orchestrator", result)
@@ -317,7 +318,7 @@ func TestAgentOrchestrator_Run_SimpleText(t *testing.T) {
 
 	orch := NewAgentOrchestrator(provider, NewToolRegistry(), nil)
 
-	result, err := orch.Run("system", []domain.Message{{Role: "user", Content: "hi"}})
+	result, err := orch.Run(context.Background(), "system", []domain.Message{{Role: "user", Content: "hi"}})
 
 	require.NoError(t, err)
 	assert.Equal(t, "Direct answer", result)

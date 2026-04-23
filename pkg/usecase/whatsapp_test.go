@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"testing"
 
 	"jarvis/internal/hooks"
@@ -190,7 +191,7 @@ func newTestRouter(t *testing.T, allowedFrom string) (*MessageRouter, func()) {
 	hooksRegistry := hooks.NewRegistry()
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
 
-	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, hooksRegistry, nil, allowedFrom)
+	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, nil, hooksRegistry, nil, allowedFrom)
 
 	return router, srv.Close
 }
@@ -246,7 +247,7 @@ func TestMessageRouter_ProcessMessage_GroupChat_Mentioned(t *testing.T) {
 	ch.On("SendMessage", "1234567890", mock.Anything).Return(nil)
 
 	meta := domain.MessageMeta{IsGroup: true, BotName: "jarvis"}
-	router.ProcessMessage(ch, "1234567890", "msg-1", "hola @asistente", meta)
+	router.ProcessMessage(ch, "1234567890", "msg-1", "hola @jarvis", meta)
 
 	ch.AssertCalled(t, "AckMessage", "msg-1")
 	ch.AssertCalled(t, "SendMessage", "1234567890", mock.Anything)
@@ -275,9 +276,9 @@ func TestMessageRouter_handleMessage_WithAgent(t *testing.T) {
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
 	agentUC := NewAgentUseCase(provider, NewToolRegistry())
 
-	router := NewMessageRouter(convUC, ai, agentUC, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(convUC, ai, agentUC, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
-	response, err := router.handleMessage("123", "hola", "test")
+	response, err := router.handleMessage(context.Background(),"123", "hola", "test")
 
 	require.NoError(t, err)
 	assert.Equal(t, "agent response", response)
@@ -295,9 +296,9 @@ func TestMessageRouter_handleMessage_WithUsageTracker(t *testing.T) {
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
 	tracker := NewUsageTracker()
 
-	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, hooksRegistry, tracker, "123")
+	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, nil, hooksRegistry, tracker, "123")
 
-	_, err := router.handleMessage("123", "hola", "test")
+	_, err := router.handleMessage(context.Background(),"123", "hola", "test")
 
 	require.NoError(t, err)
 	session := tracker.GetSession("test-123")
@@ -315,9 +316,9 @@ func TestMessageRouter_handleMessage_IngestError(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
 
-	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
-	_, err := router.handleMessage("123", "hola", "test")
+	_, err := router.handleMessage(context.Background(),"123", "hola", "test")
 
 	require.Error(t, err)
 }
@@ -326,7 +327,7 @@ func TestMessageRouter_handleMessage_IngestError(t *testing.T) {
 
 func TestNewMessageRouter_SetsFields(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	assert.Equal(t, "123", router.allowedFrom)
 	assert.NotEmpty(t, router.pairingCode)
@@ -335,7 +336,7 @@ func TestNewMessageRouter_SetsFields(t *testing.T) {
 
 func TestNewMessageRouter_EmptyAllowedFrom_GeneratesPairingCode(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "")
 
 	assert.NotEmpty(t, router.pairingCode)
 	assert.Len(t, router.pairingCode, 8)
@@ -345,7 +346,7 @@ func TestNewMessageRouter_EmptyAllowedFrom_GeneratesPairingCode(t *testing.T) {
 
 func TestMessageRouter_ProcessAudioMessage_Unauthorized(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "allowed")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "allowed")
 
 	ch := &test.MockChannel{ChannelName: "test"}
 	ch.On("SendMessage", "unauthorized", mock.Anything).Return(nil)
@@ -358,7 +359,7 @@ func TestMessageRouter_ProcessAudioMessage_Unauthorized(t *testing.T) {
 
 func TestMessageRouter_ProcessAudioMessage_NoMediaDownloader(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	ch := &test.MockChannel{ChannelName: "test"}
 	ch.On("AckMessage", "msg-1").Return(nil)
@@ -372,7 +373,7 @@ func TestMessageRouter_ProcessAudioMessage_NoMediaDownloader(t *testing.T) {
 
 func TestMessageRouter_ProcessAudioMessage_NoTranscriber(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 	router.transcriber = nil
 
 	mch := &test.MockMediaChannel{}
@@ -388,7 +389,7 @@ func TestMessageRouter_ProcessAudioMessage_NoTranscriber(t *testing.T) {
 func TestMessageRouter_ProcessAudioMessage_DownloadError(t *testing.T) {
 	transcriber := new(test.MockTranscriber)
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, transcriber, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, transcriber, nil, nil, hooksRegistry, nil, "123")
 
 	mch := &test.MockMediaChannel{}
 	mch.ChannelName = "test"
@@ -404,7 +405,7 @@ func TestMessageRouter_ProcessAudioMessage_DownloadError(t *testing.T) {
 func TestMessageRouter_ProcessAudioMessage_TranscriptionError(t *testing.T) {
 	transcriber := new(test.MockTranscriber)
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, transcriber, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, transcriber, nil, nil, hooksRegistry, nil, "123")
 
 	mch := &test.MockMediaChannel{}
 	mch.ChannelName = "test"
@@ -422,7 +423,7 @@ func TestMessageRouter_ProcessAudioMessage_TranscriptionError(t *testing.T) {
 
 func TestMessageRouter_ProcessImageMessage_Unauthorized(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "allowed")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "allowed")
 
 	ch := &test.MockChannel{ChannelName: "test"}
 	ch.On("SendMessage", "unauthorized", mock.Anything).Return(nil)
@@ -434,7 +435,7 @@ func TestMessageRouter_ProcessImageMessage_Unauthorized(t *testing.T) {
 
 func TestMessageRouter_ProcessImageMessage_NoMediaDownloader(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	ch := &test.MockChannel{ChannelName: "test"}
 	ch.On("AckMessage", "msg-1").Return(nil)
@@ -447,7 +448,7 @@ func TestMessageRouter_ProcessImageMessage_NoMediaDownloader(t *testing.T) {
 
 func TestMessageRouter_ProcessImageMessage_DownloadError(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
-	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(nil, nil, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	mch := &test.MockMediaChannel{}
 	mch.ChannelName = "test"
@@ -470,7 +471,7 @@ func TestMessageRouter_ProcessImageMessage_Success(t *testing.T) {
 
 	hooksRegistry := hooks.NewRegistry()
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
-	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	mch := &test.MockMediaChannel{}
 	mch.ChannelName = "test"
@@ -493,7 +494,7 @@ func TestMessageRouter_ProcessImageMessage_NoCaption_DefaultPrompt(t *testing.T)
 
 	hooksRegistry := hooks.NewRegistry()
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
-	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	mch := &test.MockMediaChannel{}
 	mch.ChannelName = "test"
@@ -529,9 +530,9 @@ func TestMessageRouter_handleMessage_WithOrchestrator(t *testing.T) {
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
 	orch := NewAgentOrchestrator(provider, NewToolRegistry(), nil)
 
-	router := NewMessageRouter(convUC, ai, nil, orch, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(convUC, ai, nil, orch, nil, nil, nil, hooksRegistry, nil, "123")
 
-	response, err := router.handleMessage("123", "hola", "test")
+	response, err := router.handleMessage(context.Background(),"123", "hola", "test")
 
 	require.NoError(t, err)
 	assert.Equal(t, "orchestrator response", response)
@@ -549,7 +550,7 @@ func TestMessageRouter_ProcessMessage_HandleMessageError(t *testing.T) {
 	hooksRegistry := hooks.NewRegistry()
 	convUC := NewConversationUseCase(repo, ai, hooksRegistry, 0, 0)
 
-	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, hooksRegistry, nil, "123")
+	router := NewMessageRouter(convUC, ai, nil, nil, nil, nil, nil, hooksRegistry, nil, "123")
 
 	ch := &test.MockChannel{ChannelName: "test"}
 	ch.On("AckMessage", "msg-1").Return(nil)

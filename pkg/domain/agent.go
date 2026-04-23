@@ -3,18 +3,16 @@ package domain
 // AgentDefinition defines a specialized sub-agent with its own persona, tools, and routing rules.
 // Inspired by OpenClaw's agent structure (SOUL.md + tools + bindings).
 type AgentDefinition struct {
-	// ID is the unique identifier for this agent (e.g. "finance", "dev", "study").
-	ID string `json:"id"`
-	// Name is the display name.
-	Name string `json:"name"`
-	// Description explains what this agent does (used by the orchestrator to decide routing).
-	Description string `json:"description"`
-	// SystemPrompt is the SOUL — persona, tone, boundaries, expertise.
-	SystemPrompt string `json:"system_prompt"`
-	// AllowedTools limits which tools this agent can use. Empty = all tools.
-	AllowedTools []string `json:"allowed_tools,omitempty"`
-	// DeniedTools explicitly blocks tools. Takes precedence over AllowedTools.
-	DeniedTools []string `json:"denied_tools,omitempty"`
+	ID             string   `json:"id" yaml:"id"`
+	Name           string   `json:"name" yaml:"name"`
+	Description    string   `json:"description" yaml:"description"`
+	SystemPrompt   string   `json:"system_prompt" yaml:"-"`
+	AllowedTools   []string `json:"allowed_tools,omitempty" yaml:"allowed_tools"`
+	DeniedTools    []string `json:"denied_tools,omitempty" yaml:"denied_tools"`
+	DelegatesTo    []string `json:"delegates_to,omitempty" yaml:"delegates_to"`
+	VetoRules      []string `json:"veto_rules,omitempty" yaml:"veto_rules"`
+	Priority       int      `json:"priority,omitempty" yaml:"priority"`
+	MaxTokenBudget int      `json:"max_token_budget,omitempty" yaml:"max_token_budget"`
 }
 
 // SubAgentTask represents a task delegated to a sub-agent.

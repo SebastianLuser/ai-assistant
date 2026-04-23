@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,9 +22,17 @@ type App struct {
 }
 
 func NewApp(cfg config.Config) *App {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+
 	cl := NewClients(cfg)
 	memorySvc := NewMemoryService(cfg)
 	hooksRegistry := hooks.NewRegistry()
+	if cfg.HooksConfigFile != "" {
+		if defs, err := hooks.LoadExternalConfig(cfg.HooksConfigFile); err == nil && len(defs) > 0 {
+			hooksRegistry.RegisterExternal(defs)
+			log.Printf("loaded %d external hooks from %s", len(defs), cfg.HooksConfigFile)
+		}
+	}
 
 	scheduler := NewScheduler(cl, cfg, memorySvc, hooksRegistry)
 

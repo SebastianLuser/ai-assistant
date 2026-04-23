@@ -10,12 +10,14 @@ import (
 )
 
 type Skill struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Enabled     *bool    `yaml:"enabled"`
-	Tags        []string `yaml:"tags"`
-	DependsOn   []string `yaml:"depends_on"`
-	Content     string   `yaml:"-"`
+	Name           string   `yaml:"name"`
+	Description    string   `yaml:"description"`
+	Enabled        *bool    `yaml:"enabled"`
+	Tags           []string `yaml:"tags"`
+	DependsOn      []string `yaml:"depends_on"`
+	FallbackAction string   `yaml:"fallback_action"`
+	AfterTool      string   `yaml:"after_tool"`
+	Content        string   `yaml:"-"`
 }
 
 func (s Skill) IsEnabled() bool {

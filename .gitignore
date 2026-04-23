@@ -18,3 +18,8 @@ jarvis
 
 # Deploy
 certs/
+
+# Claude Code session state
+production/session-state/
+.claude.bak/
+.claude/settings.local.json

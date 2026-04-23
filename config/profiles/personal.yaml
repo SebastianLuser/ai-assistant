@@ -1,0 +1,16 @@
+name: personal
+description: Perfil personal - vida diaria, finanzas, hábitos, entretenimiento
+allowed_skills: [finance, sheets, habits, tracking, spotify, music, player, memory, notes, links, bookmarks, todoist, tasks, todo, calendar]
+allowed_tools:
+  - save_expense
+  - save_note
+  - search_notes
+  - spotify_now_playing
+  - spotify_next
+  - list_tasks
+  - create_task
+  - get_today_events
+  - set_reminder
+allowed_agents: [finance, planner, assistant]
+allowed_rules: [finance-rules, habits-rules, morning-rules]
+extra_prompt: "Estás en modo personal. Sé cálido y motivador."

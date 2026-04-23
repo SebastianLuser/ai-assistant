@@ -1,11 +1,12 @@
 package usecase
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 
+	"jarvis/internal/tracing"
 	"jarvis/pkg/domain"
 )
 
@@ -40,12 +41,9 @@ func NewAgentOrchestrator(ai domain.ToolUseProvider, tools *ToolRegistry, agents
 // Run executes the orchestrator agent. It has access to all tools plus a special
 // "delegate_to_agent" tool that spawns sub-agent runs.
 // The orchestrator decides whether to handle the task itself or delegate.
-func (o *AgentOrchestrator) Run(baseSystem string, messages []domain.Message) (string, error) {
-	// Build orchestrator system prompt with agent catalog
+func (o *AgentOrchestrator) Run(ctx context.Context, baseSystem string, messages []domain.Message) (string, error) {
 	system := o.buildOrchestratorPrompt(baseSystem)
-
-	// Create a tool registry that includes delegate_to_agent
-	orchTools := o.buildOrchestratorTools()
+	orchTools := o.buildOrchestratorTools(ctx)
 
 	agent := &AgentUseCase{
 		ai:       o.ai,
@@ -53,7 +51,7 @@ func (o *AgentOrchestrator) Run(baseSystem string, messages []domain.Message) (s
 		maxTurns: agentMaxTurns,
 	}
 
-	return agent.Run(system, messages)
+	return agent.Run(ctx, system, messages)
 }
 
 func (o *AgentOrchestrator) buildOrchestratorPrompt(base string) string {
@@ -72,18 +70,16 @@ func (o *AgentOrchestrator) buildOrchestratorPrompt(base string) string {
 	return sb.String()
 }
 
-func (o *AgentOrchestrator) buildOrchestratorTools() *ToolRegistry {
+func (o *AgentOrchestrator) buildOrchestratorTools(ctx context.Context) *ToolRegistry {
 	orchTools := NewToolRegistry()
 
-	// Copy all existing tools
 	for _, def := range o.tools.Definitions() {
 		name := def.Name
-		orchTools.Register(def, func(input map[string]any) (string, error) {
-			return o.tools.Execute(name, input)
+		orchTools.Register(def, func(c context.Context, input map[string]any) (string, error) {
+			return o.tools.Execute(c, name, input)
 		})
 	}
 
-	// Add the delegation tool
 	orchTools.Register(domain.ToolDefinition{
 		Name:        "delegate_to_agent",
 		Description: "Delega una tarea a un agente especializado. El agente ejecuta la tarea con su propia expertise y herramientas, y devuelve el resultado.",
@@ -102,10 +98,10 @@ func (o *AgentOrchestrator) buildOrchestratorTools() *ToolRegistry {
 			},
 			"required": []string{"agent_id", "task"},
 		},
-	}, func(input map[string]any) (string, error) {
+	}, func(c context.Context, input map[string]any) (string, error) {
 		agentID := inputString(input, "agent_id")
 		task := inputString(input, "task")
-		return o.runSubAgent(agentID, task)
+		return o.runSubAgent(c, agentID, task)
 	})
 
 	return orchTools
@@ -119,17 +115,16 @@ func (o *AgentOrchestrator) agentIDs() []string {
 	return ids
 }
 
-// runSubAgent executes a task with a specialized sub-agent.
-func (o *AgentOrchestrator) runSubAgent(agentID, task string) (string, error) {
+func (o *AgentOrchestrator) runSubAgent(ctx context.Context, agentID, task string) (string, error) {
 	agentDef, ok := o.agents[agentID]
 	if !ok {
 		return "", fmt.Errorf("agent not found: %s", agentID)
 	}
 
-	log.Printf("orchestrator: delegating to agent '%s': %s", agentID, truncate(task, 80))
+	log := tracing.Logger(ctx)
+	log.Info("orchestrator: delegating", "agent", agentID, "task", truncate(task, 80))
 
-	// Build sub-agent with filtered tools
-	subTools := o.filterTools(agentDef)
+	subTools := o.filterTools(ctx, agentDef)
 
 	subAgent := &AgentUseCase{
 		ai:       o.ai,
@@ -137,29 +132,28 @@ func (o *AgentOrchestrator) runSubAgent(agentID, task string) (string, error) {
 		maxTurns: agentMaxTurns,
 	}
 
-	// Run with the sub-agent's system prompt
 	messages := []domain.Message{
 		{Role: domain.RoleUser, Content: task},
 	}
 
-	result, err := subAgent.Run(agentDef.SystemPrompt, messages)
+	result, err := subAgent.Run(ctx, agentDef.SystemPrompt, messages)
 	status := "success"
 	if err != nil {
 		status = "error"
-		log.Printf("orchestrator: agent '%s' failed: %v", agentID, err)
+		log.Warn("orchestrator: agent failed", "agent", agentID, "err", err)
 		result = fmt.Sprintf("Error del agente %s: %v", agentDef.Name, err)
 	}
 
-	log.Printf("orchestrator: agent '%s' completed (%s): %s", agentID, status, truncate(result, 100))
+	log.Info("orchestrator: agent completed", "agent", agentID, "status", status, "result", truncate(result, 100))
 
 	return result, nil
 }
 
 // filterTools returns a ToolRegistry with only the tools allowed for this agent.
 // Sub-agents never get the delegate_to_agent tool (prevents recursion).
-func (o *AgentOrchestrator) filterTools(agent domain.AgentDefinition) *ToolRegistry {
+func (o *AgentOrchestrator) filterTools(ctx context.Context, agent domain.AgentDefinition) *ToolRegistry {
 	denied := make(map[string]bool)
-	denied["delegate_to_agent"] = true // always deny delegation for sub-agents
+	denied["delegate_to_agent"] = true
 	for _, t := range agent.DeniedTools {
 		denied[t] = true
 	}
@@ -178,8 +172,8 @@ func (o *AgentOrchestrator) filterTools(agent domain.AgentDefinition) *ToolRegis
 			continue
 		}
 		name := def.Name
-		filtered.Register(def, func(input map[string]any) (string, error) {
-			return o.tools.Execute(name, input)
+		filtered.Register(def, func(c context.Context, input map[string]any) (string, error) {
+			return o.tools.Execute(c, name, input)
 		})
 	}
 	return filtered

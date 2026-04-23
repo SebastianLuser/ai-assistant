@@ -1,9 +1,11 @@
 package usecase
 
 import (
-	"log"
+	"context"
 	"strings"
 
+	"jarvis/internal/skills"
+	"jarvis/internal/tracing"
 	"jarvis/pkg/domain"
 )
 
@@ -11,9 +13,10 @@ const agentMaxTurns = 10
 
 // AgentUseCase runs an agentic loop where Claude decides which tools to call.
 type AgentUseCase struct {
-	ai       domain.ToolUseProvider
-	tools    *ToolRegistry
-	maxTurns int
+	ai          domain.ToolUseProvider
+	tools       *ToolRegistry
+	maxTurns    int
+	skillsCache []skills.Skill
 }
 
 // NewAgentUseCase creates an agent that can use tools via Claude's tool use API.
@@ -25,9 +28,14 @@ func NewAgentUseCase(ai domain.ToolUseProvider, tools *ToolRegistry) *AgentUseCa
 	}
 }
 
+// SetSkills provides the loaded skills for trigger-based composition.
+func (a *AgentUseCase) SetSkills(s []skills.Skill) {
+	a.skillsCache = s
+}
+
 // Run executes the agentic loop: Claude decides tools → we execute → Claude continues.
 // Returns the final text response.
-func (a *AgentUseCase) Run(system string, messages []domain.Message) (string, error) {
+func (a *AgentUseCase) Run(ctx context.Context, system string, messages []domain.Message) (string, error) {
 	msgs := make([]domain.Message, len(messages))
 	copy(msgs, messages)
 
@@ -69,18 +77,30 @@ func (a *AgentUseCase) Run(system string, messages []domain.Message) (string, er
 		})
 
 		// Execute each tool and collect results.
+		log := tracing.Logger(ctx)
 		var resultBlocks []domain.ContentBlock
+		var triggeredExtra []skills.Skill
 		for _, tc := range toolCalls {
-			log.Printf("agent: turn=%d executing tool %s (id=%s)", turn, tc.Name, tc.ID)
+			confirmed := inputBool(tc.Input, "confirmed")
+			useDryRun := a.tools.IsDryRun(tc.Name) && a.tools.HasPreview(tc.Name) && !confirmed
 
-			result, err := a.tools.Execute(tc.Name, tc.Input)
+			var result string
+			var err error
+			if useDryRun {
+				log.Info("agent: preview tool", "turn", turn, "tool", tc.Name, "id", tc.ID)
+				result, err = a.tools.Preview(ctx, tc.Name, tc.Input)
+			} else {
+				log.Info("agent: executing tool", "turn", turn, "tool", tc.Name, "id", tc.ID)
+				result, err = a.tools.Execute(ctx, tc.Name, tc.Input)
+			}
 			if err != nil {
-				log.Printf("agent: tool %s failed: %v", tc.Name, err)
+				log.Warn("agent: tool failed", "tool", tc.Name, "err", err)
 				result = err.Error()
+			} else if len(a.skillsCache) > 0 {
+				triggered := skills.FindTriggeredSkills(a.skillsCache, tc.Name)
+				triggeredExtra = append(triggeredExtra, triggered...)
 			}
 
-			// Claude API format: tool_result uses ID (mapped to tool_use_id)
-			// and Text (mapped to content) by domainToClaudeMessages.
 			resultBlocks = append(resultBlocks, domain.ContentBlock{
 				Type: "tool_result",
 				ID:   tc.ID,
@@ -93,6 +113,15 @@ func (a *AgentUseCase) Run(system string, messages []domain.Message) (string, er
 			Role:          domain.RoleUser,
 			ContentBlocks: resultBlocks,
 		})
+
+		if len(triggeredExtra) > 0 {
+			extra := skills.FormatForPrompt(triggeredExtra)
+			log.Info("agent: triggered skills", "count", len(triggeredExtra))
+			msgs = append(msgs, domain.Message{
+				Role:    domain.RoleUser,
+				Content: "[Sistema: ejecuta tambien esto]\n" + extra,
+			})
+		}
 	}
 
 	return "", domain.ErrAgentMaxTurns

@@ -1,0 +1,19 @@
+hooks: []
+# Example hooks:
+# hooks:
+#   - name: expense-backup
+#     event: message_processed
+#     type: webhook
+#     url: https://hooks.example.com/expense-log
+#     method: POST
+#     timeout: 5s
+#     async: true
+#     conditions:
+#       intent: expense
+#
+#   - name: daily-export
+#     event: cron_job_completed
+#     type: command
+#     command: "/scripts/export-daily.sh"
+#     timeout: 30s
+#     async: true

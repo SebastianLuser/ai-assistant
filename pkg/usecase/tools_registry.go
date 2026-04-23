@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -8,6 +9,7 @@ import (
 
 	"jarvis/clients"
 	"jarvis/internal/skills"
+	"jarvis/internal/tracing"
 	"jarvis/pkg/domain"
 	"jarvis/pkg/service"
 )
@@ -61,7 +63,7 @@ func BuildToolRegistry(
 
 	// --- Finance ---
 	if financeUC != nil {
-		r.Register(domain.ToolDefinition{
+		r.RegisterWithLimit(domain.ToolDefinition{
 			Name:        "save_expense",
 			Description: "Registra un gasto. El usuario dice algo como 'gasté 500 en el super' y se parsea automáticamente.",
 			InputSchema: map[string]any{
@@ -71,9 +73,9 @@ func BuildToolRegistry(
 				},
 				"required": []string{"message"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			return financeUC.ProcessExpense(inputString(input, "message"), "Sebas")
-		})
+		}, 5, time.Minute)
 	}
 
 	// --- Memory / Notes ---
@@ -89,7 +91,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"content"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(ctx context.Context, input map[string]any) (string, error) {
 			content := inputString(input, "content")
 			var tags []string
 			if t, ok := input["tags"].([]any); ok {
@@ -98,6 +100,15 @@ func BuildToolRegistry(
 						tags = append(tags, s)
 					}
 				}
+			}
+			if p := tracing.Profile(ctx); p != "" {
+				tags = append(tags, "profile:"+p)
+			}
+			if ch := tracing.Channel(ctx); ch != "" {
+				tags = append(tags, "channel:"+ch)
+			}
+			for _, t := range tracing.ClassifiedTags(ctx) {
+				tags = append(tags, "auto:"+t)
 			}
 			var emb []float64
 			if embedder != nil {
@@ -121,7 +132,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"query"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			query := inputString(input, "query")
 			limit := 5
 			if l, ok := input["limit"].(float64); ok && l > 0 {
@@ -154,7 +165,7 @@ func BuildToolRegistry(
 			Name:        "get_today_events",
 			Description: "Muestra los eventos del calendario de hoy.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			events, err := calendarClient.GetTodayEvents()
 			if err != nil {
 				return "", err
@@ -162,7 +173,7 @@ func BuildToolRegistry(
 			return toJSON(events), nil
 		})
 
-		r.Register(domain.ToolDefinition{
+		r.RegisterWithLimit(domain.ToolDefinition{
 			Name:        "create_event",
 			Description: "Crea un evento en el calendario.",
 			InputSchema: map[string]any{
@@ -174,7 +185,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"summary", "start", "end"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			start, err := time.Parse(time.RFC3339, inputString(input, "start"))
 			if err != nil {
 				return "", fmt.Errorf("invalid start date: %w", err)
@@ -188,7 +199,7 @@ func BuildToolRegistry(
 				return "", err
 			}
 			return toJSON(event), nil
-		})
+		}, 5, time.Minute)
 	}
 
 	// --- Gmail ---
@@ -197,7 +208,7 @@ func BuildToolRegistry(
 			Name:        "get_unread_emails",
 			Description: "Lista los emails no leídos (últimos 5).",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			emails, err := gmailClient.ListUnread(5)
 			if err != nil {
 				return "", err
@@ -212,7 +223,7 @@ func BuildToolRegistry(
 			Name:        "list_tasks",
 			Description: "Lista las tareas pendientes de Todoist.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			tasks, err := todoistClient.GetTasks()
 			if err != nil {
 				return "", err
@@ -220,7 +231,7 @@ func BuildToolRegistry(
 			return toJSON(tasks), nil
 		})
 
-		r.Register(domain.ToolDefinition{
+		r.RegisterWithLimit(domain.ToolDefinition{
 			Name:        "create_task",
 			Description: "Crea una tarea nueva en Todoist.",
 			InputSchema: map[string]any{
@@ -231,7 +242,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"content"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			dueDate := inputString(input, "due_date")
 			var dueDatePtr *string
 			if dueDate != "" {
@@ -242,7 +253,7 @@ func BuildToolRegistry(
 				return "", err
 			}
 			return toJSON(task), nil
-		})
+		}, 5, time.Minute)
 	}
 
 	// --- GitHub ---
@@ -258,7 +269,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"owner", "repo"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			issues, err := githubClient.ListIssues(inputString(input, "owner"), inputString(input, "repo"))
 			if err != nil {
 				return "", err
@@ -266,7 +277,7 @@ func BuildToolRegistry(
 			return toJSON(issues), nil
 		})
 
-		r.Register(domain.ToolDefinition{
+		r.RegisterWithLimit(domain.ToolDefinition{
 			Name:        "create_github_issue",
 			Description: "Crea un issue en un repo de GitHub.",
 			InputSchema: map[string]any{
@@ -279,13 +290,13 @@ func BuildToolRegistry(
 				},
 				"required": []string{"owner", "repo", "title"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			issue, err := githubClient.CreateIssue(inputString(input, "owner"), inputString(input, "repo"), inputString(input, "title"), inputString(input, "body"))
 			if err != nil {
 				return "", err
 			}
 			return toJSON(issue), nil
-		})
+		}, 5, time.Minute)
 	}
 
 	// --- Jira ---
@@ -294,7 +305,7 @@ func BuildToolRegistry(
 			Name:        "get_my_jira_issues",
 			Description: "Lista mis issues asignados en Jira.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			issues, err := jiraClient.GetMyIssues()
 			if err != nil {
 				return "", err
@@ -309,7 +320,7 @@ func BuildToolRegistry(
 			Name:        "spotify_now_playing",
 			Description: "Muestra qué canción se está reproduciendo en Spotify.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			track, err := spotifyClient.GetCurrentlyPlaying()
 			if err != nil {
 				return "", err
@@ -321,14 +332,14 @@ func BuildToolRegistry(
 			Name:        "spotify_next",
 			Description: "Salta a la siguiente canción en Spotify.",
 			InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			return "Canción siguiente", spotifyClient.Next()
 		})
 	}
 
 	// --- Self-modifying skills ---
 	if skillWriter != nil {
-		r.Register(domain.ToolDefinition{
+		r.RegisterWithLimit(domain.ToolDefinition{
 			Name:        "create_skill",
 			Description: "Crea una nueva habilidad/skill para el asistente. Usá esto cuando el usuario te pida recordar un comportamiento, estilo, o conocimiento específico para futuras conversaciones.",
 			InputSchema: map[string]any{
@@ -341,7 +352,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"name", "content"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			enabled := true
 			var tags []string
 			if t, ok := input["tags"].([]any); ok {
@@ -362,7 +373,7 @@ func BuildToolRegistry(
 				return "", err
 			}
 			return fmt.Sprintf("Skill '%s' creado. Se activará en las próximas conversaciones.", skill.Name), nil
-		})
+		}, 3, time.Minute)
 	}
 
 	// --- Usage tracking ---
@@ -370,13 +381,13 @@ func BuildToolRegistry(
 		Name:        "get_usage",
 		Description: "Muestra el consumo de tokens y costo estimado de la sesión actual y el total.",
 		InputSchema: map[string]any{"type": "object", "properties": map[string]any{}},
-	}, func(input map[string]any) (string, error) {
+	}, func(_ context.Context, input map[string]any) (string, error) {
 		return "Usage tracking disponible via GET /api/usage", nil
 	})
 
 	// --- Scheduled reminders ---
 	if reminderMgr != nil {
-		r.Register(domain.ToolDefinition{
+		r.RegisterWithLimit(domain.ToolDefinition{
 			Name:        "set_reminder",
 			Description: "Programa un recordatorio que se enviará después de un tiempo. Ej: 'recordame en 30 minutos que tengo que llamar'.",
 			InputSchema: map[string]any{
@@ -387,7 +398,7 @@ func BuildToolRegistry(
 				},
 				"required": []string{"message", "minutes"},
 			},
-		}, func(input map[string]any) (string, error) {
+		}, func(_ context.Context, input map[string]any) (string, error) {
 			msg := inputString(input, "message")
 			minutes := 0.0
 			if m, ok := input["minutes"].(float64); ok {
@@ -399,7 +410,7 @@ func BuildToolRegistry(
 			duration := time.Duration(minutes) * time.Minute
 			reminderMgr.Schedule(duration, "⏰ Recordatorio: "+msg)
 			return fmt.Sprintf("Recordatorio programado para dentro de %.0f minutos.", minutes), nil
-		})
+		}, 5, time.Minute)
 	}
 
 	return r

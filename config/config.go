@@ -44,6 +44,12 @@ type Config struct {
 	TelegramBotToken    string
 	TelegramSecretToken string
 	TelegramBotUsername string
+	RulesDir            string
+	DryRunTools         string
+	ProfilesDir         string
+	DefaultProfile      string
+	AgentsDir           string
+	HooksConfigFile     string
 }
 
 func Load() Config {
@@ -86,6 +92,12 @@ func Load() Config {
 		TelegramBotToken:    os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramSecretToken: os.Getenv("TELEGRAM_SECRET_TOKEN"),
 		TelegramBotUsername: os.Getenv("TELEGRAM_BOT_USERNAME"),
+		RulesDir:            envOr("RULES_DIR", "rules"),
+		DryRunTools:         os.Getenv("DRY_RUN_TOOLS"),
+		ProfilesDir:         envOr("PROFILES_DIR", "config/profiles"),
+		DefaultProfile:      envOr("DEFAULT_PROFILE", "full"),
+		AgentsDir:           envOr("AGENTS_DIR", "agents"),
+		HooksConfigFile:     envOr("HOOKS_CONFIG_FILE", "config/hooks.yaml"),
 	}
 }
 

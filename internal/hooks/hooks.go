@@ -17,6 +17,7 @@ const (
 	MessageProcessed         = "message_processed"
 	AudioTranscribed         = "audio_transcribed"
 	AgentDelegated           = "agent_delegated"
+	ToolCompleted            = "tool_completed"
 )
 
 type Event struct {
@@ -28,14 +29,21 @@ type Event struct {
 type HookFunc func(ctx context.Context, event Event) error
 
 type Registry struct {
-	mu    sync.RWMutex
-	hooks map[string][]HookFunc
+	mu       sync.RWMutex
+	hooks    map[string][]HookFunc
+	external []ExternalHookDef
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
 		hooks: make(map[string][]HookFunc),
 	}
+}
+
+func (r *Registry) RegisterExternal(defs []ExternalHookDef) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.external = append(r.external, defs...)
 }
 
 // Register adds a hook function for the given event type.
@@ -50,9 +58,10 @@ func (r *Registry) Register(eventType string, fn HookFunc) {
 func (r *Registry) Emit(ctx context.Context, eventType string, payload any) {
 	r.mu.RLock()
 	fns := r.hooks[eventType]
+	externals := r.external
 	r.mu.RUnlock()
 
-	if len(fns) == 0 {
+	if len(fns) == 0 && len(externals) == 0 {
 		return
 	}
 
@@ -65,6 +74,12 @@ func (r *Registry) Emit(ctx context.Context, eventType string, payload any) {
 	for _, fn := range fns {
 		if err := fn(ctx, event); err != nil {
 			log.Printf("hooks: %s handler error: %v", eventType, err)
+		}
+	}
+
+	for _, def := range externals {
+		if def.Event == eventType {
+			runExternalHook(ctx, def, event)
 		}
 	}
 }

@@ -1,39 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(for dir:*)",
-      "Bash(do echo:*)",
-      "Read(//c/Users/Educabot/Desktop/Personal/jarvis/pkg/**)",
-      "Bash(done)",
-      "Bash(go vet:*)",
-      "Bash(go test:*)",
-      "Bash(grep -h \"^func Test\" /c/Users/Educabot/Desktop/Personal/jarvis/pkg/domain/*_test.go | sort)",
-      "Bash(grep -h \"^func Test\" /c/Users/Educabot/Desktop/Personal/jarvis/pkg/controller/*_test.go | sort)",
-      "Bash(grep -h \"^func Test\" /c/Users/Educabot/Desktop/Personal/jarvis/pkg/usecase/*_test.go | sort)",
-      "Bash(grep -h \"^func Test\" /c/Users/Educabot/Desktop/Personal/jarvis/pkg/service/*_test.go | sort)",
-      "Bash(grep -h \"^func Test\" /c/Users/Educabot/Desktop/Personal/jarvis/clients/*_test.go | sort)",
-      "Bash(grep -h \"^func Test\" /c/Users/Educabot/Desktop/Personal/jarvis/internal/*/*.go | sort)",
-      "Bash(/tmp/coverage_summary.txt:*)",
-      "Read(//tmp/**)",
-      "Bash(go build:*)",
-      "Bash(go tool:*)",
-      "Bash(ls:*)",
-      "Bash(for pkg:*)",
-      "Bash(do go:*)",
-      "Bash(go version:*)",
-      "Bash(echo $GOPATH)",
-      "Bash(echo $GOROOT)",
-      "Bash(echo $PATH)",
-      "Bash(winget install:*)",
-      "Bash(curl:*)",
-      "Bash(grep:*)",
-      "Bash(go mod:*)",
-      "Read(//c/Program Files/Go/bin//**)",
-      "Bash(cmd.exe /C \"where go\")",
-      "Bash(git remote:*)",
-      "Bash(xargs sed:*)",
-      "Bash(find /c/Users/Educabot/Desktop/Personal/jarvis -type f -name \"*.go\" -exec grep -l \"db.Query\\\\|db.Exec\\\\|QueryRow\" {})",
-      "Bash(find /c/Users/Educabot/Desktop/Personal/jarvis -type f -name *.sql)"
+      "Bash(make test *)",
+      "Bash(git status *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(go build *)",
+      "Bash(xargs ls *)",
+      "Bash(git add *)"
     ]
   }
 }
