@@ -1,4 +1,4 @@
-.PHONY: run build test test-cover vet docker clean
+.PHONY: run build test test-race test-cover vet docker clean
 
 run:
 	go run ./cmd
@@ -7,10 +7,13 @@ build:
 	CGO_ENABLED=0 go build -o jarvis ./cmd
 
 test:
-	go test -race ./...
+	go test ./...
+
+test-race:
+	CGO_ENABLED=1 go test -race ./...
 
 test-cover:
-	go test -race -cover -coverprofile=coverage.out ./...
+	go test -cover -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out | tail -1
 
 vet:

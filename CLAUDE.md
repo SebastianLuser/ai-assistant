@@ -20,7 +20,8 @@ Jarvis — microservicio Go que funciona como backend de un asistente personal a
 ```bash
 make run          # go run ./cmd
 make build        # CGO_ENABLED=0 go build -o jarvis ./cmd
-make test         # go test -race ./...
+make test         # go test ./...
+make test-race    # go test -race (requires CGO_ENABLED=1)
 make test-cover   # test + coverage report
 make vet          # go vet ./...
 make docker       # docker compose up -d --build jarvis
@@ -61,23 +62,46 @@ clients/                ← External API clients (single package, prefixed types
 
 pkg/
 ├── domain/             ← Models, types, sentinel errors, constants, Validate() methods
+│   ├── catalog.go      ← CatalogEntry (usage/success/error tracking per tool/skill/agent)
+│   └── dryrun.go       ← PreviewResult for dry-run mode
 ├── controller/         ← HTTP handlers (decode → validate → usecase → response)
+│   ├── catalog.go      ← Catalog API controller
+│   ├── health.go       ← Health API controller (detailed integration status)
+│   └── skills_qa.go    ← Skills QA report + validate controller
 ├── usecase/            ← Business logic (ProcessExpense, FallbackSearch, Compact, Scheduler)
+│   ├── ratelimit.go    ← Sliding window rate limiter per tool
+│   ├── promptcache.go  ← In-memory prompt cache with TTL
+│   └── health.go       ← Health checker with periodic integration checks + catalog summary
 └── service/            ← Data access interfaces + implementations (Postgres, Sheets)
+    ├── catalog.go      ← CatalogService interface + PGCatalogService + NullCatalogService
     └── sqldata/        ← SQL queries as embedded .sql files
         ├── postgres/   ← insert/, select/, delete/ con archivos .sql individuales
         └── queries.go  ← Constantes Postgres via go:embed
 
 internal/
+├── agents/             ← Agent definition loader (YAML frontmatter .md)
 ├── hooks/              ← Event hook system (Register/Emit)
+│   ├── config.go       ← Hook YAML config loader
+│   └── external.go     ← External webhook/command hooks
+├── middleware/          ← Trace ID + webhook auth interceptors
+├── profiles/           ← YAML profile loader (skill/tool/agent/rule permissions)
+├── rules/              ← Rule engine (triggers: tags, time_range, channel, day_of_week)
 ├── skills/             ← Skill loader (YAML frontmatter + markdown)
-└── middleware/         ← Webhook auth interceptor
+│   ├── deps.go         ← Skill dependency validation
+│   ├── triggers.go     ← Post-tool skill triggers
+│   └── qa.go           ← Skill QA rubric validation
+└── tracing/            ← Context-based trace propagation + slog integration
 
 test/
 └── mocks.go            ← MockMemoryService, MockEmbedder, MockAIProvider, MockWhatsAppSender, MockRequest, MockClaudeServer
 
 web/                    ← Framework-agnostic HTTP abstractions (from template)
 boot/                   ← Server bootstrap (from template)
+config/
+├── profiles/           ← Runtime profile YAML files (full, work, personal, study)
+└── hooks.yaml          ← External hook definitions (command/webhook)
+agents/                 ← Agent definition markdown files (assistant, dev, finance, planner, study)
+rules/                  ← Runtime rule markdown files (dev, finance, habits, morning)
 db/                     ← Migrator + SQL migrations (postgres)
 skills/                 ← Skill markdown files with YAML frontmatter
 ```
@@ -105,6 +129,17 @@ HTTP Request → Controller → UseCase → Service (DB/API) → UseCase → Con
 - **AI failover**: `FailoverProvider` wraps primary + fallback AIProvider — if Claude fails, falls back to OpenAI automatically
 - **Skills auto-generated**: Skills can be created at runtime via `POST /api/skills` — the AI or user can create new skills from chat
 - **Webhook triggers**: Cron jobs can be triggered manually via `POST /api/triggers/job/:job_id`
+- **Agent orchestration**: `AgentOrchestrator` delegates to sub-agents (assistant, dev, finance, planner, study) with own system prompts loaded from `agents/`
+- **Runtime profiles**: YAML profiles in `config/profiles/` control which skills/tools/agents/rules are active per context (full, work, personal, study)
+- **Rules engine**: Markdown rules in `rules/` with YAML frontmatter triggers (tags, time_range, channel, day_of_week) — matched and injected into prompts at runtime
+- **Tool rate limiting**: Sliding window per-tool rate limits prevent abuse (`toolLimit` in `usecase/ratelimit.go`)
+- **Prompt caching**: In-memory TTL cache keyed by profile+channel+tags avoids recomputing system prompts (`PromptCache`)
+- **Catalog tracking**: Automatic usage/success/error counting per tool/skill/agent via `CatalogService` + `catalog` table in Postgres
+- **Tracing**: Context-propagated TraceID across request lifecycle via `internal/tracing` — injected by `middleware.TraceID()`, logged with `tracing.Logger(ctx)`
+- **External hooks**: YAML-configured hooks (`config/hooks.yaml`) fire shell commands or HTTP webhooks on internal events
+- **Skill QA**: Rubric-based validation scores skill quality (required fields, content length, WIP markers) via `skills.ValidateSkill()`
+- **Skill dependencies**: `DependencyChecker` validates that required integrations are available before enabling a skill
+- **Dry-run mode**: Tools configured via `DRY_RUN_TOOLS` env return `PreviewResult` instead of executing side-effects
 
 ## API Endpoints
 
@@ -161,12 +196,26 @@ HTTP Request → Controller → UseCase → Service (DB/API) → UseCase → Con
 | GET | `/api/figma/project/:project_id/files` | List project files |
 | GET | `/api/skills` | List enabled skills |
 | POST | `/api/skills` | Create a new skill |
+| GET | `/api/skills/report` | QA report for all loaded skills |
+| POST | `/api/skills/validate` | Validate a single skill against QA rubric |
+| GET | `/api/catalog` | List all catalog entries (usage stats) |
+| GET | `/api/catalog/:name?type=` | Get catalog entry by name and type |
+| GET | `/api/health` | Detailed health with integration status + catalog summary |
 | GET | `/api/triggers/jobs` | List registered cron jobs |
 | POST | `/api/triggers/job/:job_id` | Manually trigger a cron job |
 
 ## Environment Variables
 
-See `.env.example` for the full list with defaults.
+See `.env.example` for the full list with defaults. New config vars:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENTS_DIR` | `agents` | Directory for agent definition markdown files |
+| `RULES_DIR` | `rules` | Directory for runtime rule markdown files |
+| `PROFILES_DIR` | `config/profiles` | Directory for YAML profile files |
+| `DEFAULT_PROFILE` | `full` | Active profile name at startup |
+| `HOOKS_CONFIG_FILE` | `config/hooks.yaml` | Path to external hooks YAML config |
+| `DRY_RUN_TOOLS` | _(empty)_ | Comma-separated tool names that run in preview mode |
 
 ## Naming Conventions
 

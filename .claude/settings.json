@@ -6,15 +6,12 @@
   },
   "permissions": {
     "allow": [
-      "\"Bash(git",
-      "status*",
-      "\"Bash(go",
-      "*"
+      "Bash(git *)",
+      "Bash(go *)",
+      "Bash(make *)"
     ],
     "deny": [
-      "\"Bash(rm",
-      "-rf",
-      "*"
+      "Bash(rm -rf *)"
     ]
   },
   "hooks": {
